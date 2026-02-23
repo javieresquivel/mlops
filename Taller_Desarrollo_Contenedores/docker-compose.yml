@@ -1,0 +1,19 @@
+version: '3'
+
+services:
+  app:
+    build: ./ServidorInferencia
+    ports:
+      - "8989:80"
+    volumes:
+      - ./models:/app/models
+  jupyter:
+    build: ./ServidorJupiter/MiJupyterLab
+    container_name: mijupiterlab
+    #Redireccionar puerto 8888 del contenedor al puerto 8888 del host
+    ports:
+      - "8888:8888"
+    # Montar el directorio de modelos en el contenedor para que los cambios se reflejen en tiempo real
+    volumes:
+      - ./models:/app/models
+      - ./ServidorJupiter/Data:/app/Data
