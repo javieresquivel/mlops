@@ -1,6 +1,40 @@
 # Compartir datos entre contenedores mediante volumenes
 
-## Servidor de entrenamiento (Jupiterlab)
+## Desarrollado por
+
+**Grupo 9**
+- Javier Esquivel
+- Santiago Serrano
+  
+## Servidor de entrenamiento (Jupyterlab)
+
+El servidor de entrenamiento está basado en JupyterLab y se encuentra en la carpeta `ServidorJupiter/MiJupyterLab`. Este contenedor permite preparar, entrenar y guardar modelos random forest usando el dataset Penguins.
+
+### Estructura
+- **Dockerfile**: Define la imagen basada en Python 3.9, instala dependencias con `uv` y ejecuta JupyterLab.
+- **pyproject.toml**: Lista las dependencias principales: `jupyterlab`, `matplotlib`, `pandas`, `scikit-learn` y `seaborn`.
+- **train.ipynb**: Notebook base para entrenamiento de modelos usando el dataset `penguins.csv`.
+- **Data/**: Carpeta con csv del dataset `penguins.csv`.
+
+### Volúmenes
+En el archivo `docker-compose.yaml` se configuran los volúmenes:
+- `../models:/app/models`: Permite guardar los modelos entrenados en una carpeta compartida accesible por otros contenedores.
+- `./Data:/app/Data`: Permite acceder a los datos de entrenamiento.
+
+### Uso
+1. Construir y levantar el contenedor:
+	```bash
+	docker-compose up --build
+	```
+2. Acceder a JupyterLab en [localhost:8888](http://localhost:8888).
+
+  <img width="1919" height="986" alt="image" src="https://github.com/user-attachments/assets/8a2c7e58-545c-4102-8709-39e7766594ed" />
+
+3. Utilizar el notebook `train.ipynb` para entrenar modelos y guardarlos en `/app/models`.
+
+  <img width="509" height="285" alt="image" src="https://github.com/user-attachments/assets/225dc403-7683-4892-8704-b4750b452b7c" />
+
+Esto permite que los modelos generados estén disponibles para el servidor de inferencia, facilitando el flujo de trabajo entre entrenamiento e inferencia.
 
 ## Servidor de inferencia
 
