@@ -294,5 +294,24 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
+  #contenedor mysql para guardar datos de raw y procesados
+  mysql:
+    image: mysql:8.0
+    container_name: mysql_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: mlops_db
+      MYSQL_USER: mlops_user
+      MYSQL_PASSWORD: mlops_pass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      
+
+
+
 volumes:
   postgres-db-volume:
+  mysql_data:

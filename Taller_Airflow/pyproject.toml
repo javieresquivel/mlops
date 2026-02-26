@@ -10,4 +10,9 @@ dependencies = [
     "pandas>=2.3.3",
     "scikit-learn>=1.7.2",
     "seaborn>=0.13.2",
+    
+    "cryptography>=46.0.5",
+    "pymysql>=1.1.2",
+    "sqlalchemy>=2.0.47",
+
 ]
