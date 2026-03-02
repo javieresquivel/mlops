@@ -1,0 +1,1 @@
+Para poder instalar las librerías se creó una imagen aparte basada en apache/airflow:2.11.1. No se usó la 2.6.0 que tenía el archivo orginal debido a que la versión de python que esta contenía no era compatible con las librerías.
