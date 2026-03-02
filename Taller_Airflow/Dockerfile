@@ -1,17 +1,36 @@
+# Definimos la imagen base
+ARG AIRFLOW_IMAGE_NAME=apache/airflow:2.11.1
+FROM ${AIRFLOW_IMAGE_NAME}
 
-FROM ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.6.0}
+# Cambiamos a root para instalar dependencias del sistema
+USER root
 
-# instalar uv
 RUN apt-get update && \
-	apt-get install -y build-essential libffi-dev && \
-	pip install --upgrade pip && \
-	pip install uv
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    libffi-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# crear directorio de trabajo
-WORKDIR /app
 
-# Copia el directorio actual al directorio del contenedor
-COPY . . 
+# Forzamos la actualización de pip e instalamos uv
+RUN python -m pip install --upgrade pip && \
+    python -m pip install --no-cache-dir uv
 
-# Se instalan las dependencias necesarias con uv
-RUN uv sync
+# Establecemos el directorio de trabajo (Airflow usa /opt/airflow por defecto)
+WORKDIR /opt/airflow
+
+USER airflow
+
+# Copiamos los archivos de dependencias primero (mejora la caché de Docker)
+COPY --chown=airflow:0 pyproject.toml uv.lock* ./
+COPY requirements.txt ./
+RUN pip install --no-cache-dir --upgrade -r requirements.txt
+RUN pip install apache-airflow==${AIRFLOW_VERSION}
+
+
+# Instalamos las dependencias. 
+# Nota: Airflow ya tiene un entorno virtual, uv pip install suele ser más directo
+#RUN if [ -f pyproject.toml ]; then \
+#    uv pip install --no-cache-dir --system -r pyproject.toml; \
+#    fi

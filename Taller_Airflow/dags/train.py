@@ -1,6 +1,5 @@
 # Imports necesarios para carga, visualización y particionado de datos
 import pandas as pd
-import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
@@ -11,7 +10,7 @@ from sqlalchemy import create_engine, text
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import cross_val_score
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-
+import seaborn as sns
 
 """
 Borra la base de datos 'penguins' en MySQL.
@@ -19,7 +18,7 @@ Borra la base de datos 'penguins' en MySQL.
 def delete_database():
     print("="*50)
     engine = create_engine(
-        "mysql+pymysql://root:root123@127.0.0.1:3306/"
+        "mysql+pymysql://root:root123@mysql:3306/"
     )
     with engine.connect() as conn:
         conn.execute(text("DROP DATABASE IF EXISTS penguins"))
@@ -35,16 +34,17 @@ def load_csv_to_mysql(csv_path):
     print("="*50)
     # Conexión a MySQL
     engine = create_engine(
-        "mysql+pymysql://root:root123@127.0.0.1:3306/"
+        "mysql+pymysql://root:root123@mysql:3306/"
     )
 
     # Crear base de datos si no existe
     with engine.connect() as conn:
         conn.execute(text("CREATE DATABASE IF NOT EXISTS penguins"))
+        conn.execute(text("COMMIT"))
     
     # Conectar a la base penguins
     engine = create_engine(
-        "mysql+pymysql://root:root123@127.0.0.1:3306/penguins"
+        "mysql+pymysql://root:root123@mysql:3306/penguins"
     )
 
     # Leer CSV
@@ -70,7 +70,7 @@ def preprocess():
     #Lee la tabla 'raw' de la base de datos 'penguins' y retorna un DataFrame.
 
     engine = create_engine(
-        "mysql+pymysql://root:root123@127.0.0.1:3306/penguins"
+        "mysql+pymysql://root:root123@mysql:3306/penguins"
     )
     df = pd.read_sql("SELECT * FROM raw", con=engine)
     print("Datos leídos correctamente desde penguins.raw")
@@ -100,7 +100,7 @@ def preprocess():
 
     # Guardar el DataFrame transformado en la tabla 'transform' de la base de datos 'penguins'
     engine = create_engine(
-        "mysql+pymysql://root:root123@127.0.0.1:3306/penguins"
+        "mysql+pymysql://root:root123@mysql:3306/penguins"
     )
     df_encoded.to_sql(
         name="transform",
@@ -119,7 +119,7 @@ def train():
     print("="*50)
     # Leer el DataFrame transformado desde la tabla 'transform' de la base de datos 'penguins'
     engine = create_engine(
-        "mysql+pymysql://root:root123@127.0.1:3306/penguins"
+        "mysql+pymysql://root:root123@mysql:3306/penguins"
     )
     df_encoded = pd.read_sql("SELECT * FROM transform", con=engine)
     print("Datos leídos correctamente desde penguins.transform") 
@@ -177,7 +177,7 @@ def train():
 
     # Guardar el modelo entrenado en formato pkl
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    model_path = f'./models/model_random_forest_{timestamp}.pkl'
+    model_path = f'/opt/airflow/dags/model_random_forest_{timestamp}.pkl'
     joblib.dump(model, model_path)
     print(f"Modelo guardado en: {model_path}")
     print("="*50)
