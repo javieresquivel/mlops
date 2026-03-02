@@ -177,7 +177,7 @@ def train():
 
     # Guardar el modelo entrenado en formato pkl
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    model_path = f'/opt/airflow/dags/model_random_forest_{timestamp}.pkl'
+    model_path = f'/opt/airflow/dags/models/model_random_forest_{timestamp}.pkl'
     joblib.dump(model, model_path)
     print(f"Modelo guardado en: {model_path}")
     print("="*50)
