@@ -332,6 +332,13 @@ services:
     volumes:
       - ./dags/models:/app/models
 
+  jupyter:
+    build: ./ServidorJupiter/MiJupyterLab
+    container_name: mijupiterlab
+    #Redireccionar puerto 8888 del contenedor al puerto 8888 del host
+    ports:
+      - "8888:8888"
+
 volumes:
   postgres-db-volume:
   mysql_data:
