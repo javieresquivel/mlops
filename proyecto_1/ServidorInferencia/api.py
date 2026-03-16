@@ -1,14 +1,27 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from pathlib import Path
-import joblib 
+import joblib,boto3,os
 import numpy as np
 
 app = FastAPI()
 MODELS_DIR = Path("/app/models")
 
 def listar_modelos():
-    return [f.name for f in MODELS_DIR.iterdir() if f.is_file()]
+    #return [f.name for f in MODELS_DIR.iterdir() if f.is_file()]
+    endpoint = os.getenv('MINIO_ENDPOINT', 'http://minio:9000')
+    access_key = os.getenv('AWS_ACCESS_KEY_ID', 'admin')
+    secret_key = os.getenv('AWS_SECRET_ACCESS_KEY', 'supersecret')
+    bucket = 'modelos'
+    s3 = boto3.client(
+        's3',
+        endpoint_url=endpoint,
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name=os.getenv('AWS_DEFAULT_REGION', 'us-east-1'),
+    )
+    response = s3.list_objects_v2(Bucket=bucket)
+    return [item['Key'] for item in response.get('Contents', [])]
 
 """
     Se listan los modelos o archivos presentes en el volumen compartido
