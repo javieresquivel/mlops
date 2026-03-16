@@ -339,6 +339,16 @@ services:
     ports:
       - "8888:8888"
 
+  p2:
+    build: ./P2
+    container_name: fastapi
+    ports:
+      - '85:80'
+    volumes:
+      - ./data:/data
+      - ./main.py:/main.py
+    restart: always
+
 volumes:
   postgres-db-volume:
   mysql_data:
