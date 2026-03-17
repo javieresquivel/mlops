@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from pathlib import Path
 import joblib,boto3,os
 import numpy as np
+import requests
 
 app = FastAPI()
 MODELS_DIR = Path("/app/models")
@@ -54,6 +55,13 @@ class Item(BaseModel):
     Soil_Type: str
     modelo: str # Se agrega el parametro de modelo al realizar la petición de predicción
 
+def descargarArchivo(url):
+    nombre = url.split("/")
+    response = requests.get(url)
+    path = "/tmp/"+nombre[-1]
+    open(path, "wb").write(response.content)
+    return path
+
 """
     Se define una petición tipo post para recibir los 
     parametros de entrada para que el modelo previamente
@@ -76,7 +84,13 @@ def create_item(item: Item):
             item.Wilderness_Area,
             item.Soil_Type
         ]])
-        modelo = joblib.load(f"/app/models/{item.modelo}")
+
+        endpoint = os.getenv('MINIO_ENDPOINT', 'http://minio:9000')
+        bucket = 'modelos'
+        # Descargar modelo de minio en /tmp
+        path = descargarArchivo(f"{endpoint}/{bucket}/{item.modelo}")
+
+        modelo = joblib.load(path)
         pred = modelo.predict(X)
         return {"prediction": pred.tolist()} # Se retorna el resultado
     else:
