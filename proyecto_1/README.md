@@ -44,6 +44,11 @@ El servidor de inferencia basado en FastAPI permite el consumo del modelo:
   <img width="921" height="175" alt="image" src="https://github.com/user-attachments/assets/d58d1c5e-44c2-429d-9e01-69df71d6e90a" />
 - **Predicciones en Tiempo Real**: Se utilizan estos modelos cargados dinámicamente para realizar inferencias basadas en las características del dataset Covertype.
 - Para la predicción se hace la descarga del modelo seleccionado y se lleva a la carpeta /tmp para que pueda ser usado por joblib
+- **Encoders** teniendo en cuenta que se tenían dos variables categoricas, al realizar la inferencia se tenían que transformar esas variables, por lo tanto en jupyter se guardaron los encoders y se subieron a **minio** para ser usados después en el servidor de inferencia de tal forma que al momento de realizar las predicciones los datos fueran compatibles.
+
+<img width="584" height="289" alt="image" src="https://github.com/user-attachments/assets/373ff369-8ebd-4e42-a87d-cc064b4d9221" />
+
+  
 - Ejecutando la predicción nos entrega el resultado
   
 <img width="689" height="280" alt="image" src="https://github.com/user-attachments/assets/a486e3be-2813-420f-8718-3abe87b6cfac" />
