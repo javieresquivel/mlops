@@ -43,6 +43,11 @@ El servidor de inferencia basado en FastAPI permite el consumo del modelo:
 - **Consulta en Minio**: El API detecta y lista los modelos disponibles directamente desde el bucket de Minio.
   <img width="921" height="175" alt="image" src="https://github.com/user-attachments/assets/d58d1c5e-44c2-429d-9e01-69df71d6e90a" />
 - **Predicciones en Tiempo Real**: Se utilizan estos modelos cargados dinámicamente para realizar inferencias basadas en las características del dataset Covertype.
+- Para la predicción se hace la descarga del modelo seleccionado y se lleva a la carpeta /tmp para que pueda ser usado por joblib
+- Ejecutando la predicción nos entrega el resultado
+  
+<img width="689" height="280" alt="image" src="https://github.com/user-attachments/assets/a486e3be-2813-420f-8718-3abe87b6cfac" />
+
 
 ---
 
