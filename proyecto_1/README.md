@@ -12,21 +12,34 @@
 Se ha implementado un DAG en Airflow que se ejecuta automáticamente cada **5 minutos**. Este DAG es el encargado de disparar la recolección de datos llamando a la función principal que realiza la captura de datos.
 
 ### 2. Consulta del API y Escritura en Base de Datos
-- **Ingesta Incremental**: Se creó un método que consulta el API externo utilizando el ID del grupo (Grupo 9). 
+- **Ingesta Incremental**: Se creó un método que consulta el API externo utilizando el ID del grupo (Grupo 9).
+  
+  <img width="921" height="278" alt="image" src="https://github.com/user-attachments/assets/5a050038-0cc6-48f5-9536-232fd7432a2f" />
+  
 - **Almacenamiento**: Los datos recibidos son procesados y almacenados en una base de datos MySQL, específicamente en la tabla `raw`, de manera incremental.
+  
+  <img width="548" height="716" alt="image" src="https://github.com/user-attachments/assets/b27bc73a-e26b-42e1-ae20-1bcb83f67782" />
+  
 - **Control de Ciclos**: Se implementó un condicional que detecta cuando se llega al **batch 9**; en este punto, el sistema envía una señal al API para reiniciar el contador de generación de datos.
+  
+  <img width="921" height="486" alt="image" src="https://github.com/user-attachments/assets/b95feb9d-4122-464a-9662-41c0ea3136b3" />
 
 ### 3. Procesamiento en Jupyter y Entrenamiento
 Desde un libro de **Jupyter Lab** corriendo en un contenedor:
 1. **Lectura de BBDD**: Se extraen los datos de la tabla `raw` de MySQL.
 2. **Transformación**: Se aplican procesos de limpieza, encoding y preprocesamiento de los datos.
-3. **Persistencia**: Los datos transformados se guardan nuevamente en la base de datos, en la tabla `transformed`.
-4. **Entrenamiento**: Se entrena un modelo de clasificación utilizando los datos preparados.
-5. **Registro en Minio**: El modelo final entrenado se exporta y se guarda automáticamente en el servicio de almacenamiento de objetos **Minio** para su posterior despliegue.
+   <img width="597" height="231" alt="image" src="https://github.com/user-attachments/assets/9799a84f-7584-4b67-85a2-569f34843d44" />
+4. **Persistencia**: Los datos transformados se guardan nuevamente en la base de datos, en la tabla `transformed`.
+5. **Entrenamiento**: Se entrena un modelo de clasificación utilizando los datos preparados.
+   <img width="769" height="481" alt="image" src="https://github.com/user-attachments/assets/c38a068e-2961-4efa-89fd-fcb905054e2f" />
+   <img width="921" height="490" alt="image" src="https://github.com/user-attachments/assets/d6cb4a4e-bd7f-4063-bea4-aec9aa6d20e3" /> 
+7. **Registro en Minio**: El modelo final entrenado se exporta y se guarda automáticamente en el servicio de almacenamiento de objetos **Minio** para su posterior despliegue.
+  <img width="921" height="232" alt="image" src="https://github.com/user-attachments/assets/d70be3d8-a3a7-42a8-a7ff-c05c90ba244e" />
 
 ### 4. Servidor de Inferencia
 El servidor de inferencia basado en FastAPI permite el consumo del modelo:
 - **Consulta en Minio**: El API detecta y lista los modelos disponibles directamente desde el bucket de Minio.
+  <img width="921" height="175" alt="image" src="https://github.com/user-attachments/assets/d58d1c5e-44c2-429d-9e01-69df71d6e90a" />
 - **Predicciones en Tiempo Real**: Se utilizan estos modelos cargados dinámicamente para realizar inferencias basadas en las características del dataset Covertype.
 
 ---
