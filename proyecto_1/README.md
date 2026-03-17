@@ -11,6 +11,8 @@
 ### 1. Orquestación con Airflow (DAG)
 Se ha implementado un DAG en Airflow que se ejecuta automáticamente cada **5 minutos**. Este DAG es el encargado de disparar la recolección de datos llamando a la función principal que realiza la captura de datos.
 
+  <img width="389" height="422" alt="image" src="https://github.com/user-attachments/assets/3d7d748c-5c33-49d4-a79b-d131325e849d" />
+
 ### 2. Consulta del API y Escritura en Base de Datos
 - **Ingesta Incremental**: Se creó un método que consulta el API externo utilizando el ID del grupo (Grupo 9).
   
