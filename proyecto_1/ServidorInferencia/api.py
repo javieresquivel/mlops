@@ -55,12 +55,21 @@ class Item(BaseModel):
     Soil_Type: str
     modelo: str # Se agrega el parametro de modelo al realizar la petición de predicción
 
-def descargarArchivo(url):
-    nombre = url.split("/")
-    response = requests.get(url)
-    path = "/tmp/"+nombre[-1]
-    open(path, "wb").write(response.content)
-    return path
+def descargarArchivo(object_name):
+    endpoint = os.getenv('MINIO_ENDPOINT', 'http://minio:9000')
+    access_key = os.getenv('AWS_ACCESS_KEY_ID', 'admin')
+    secret_key = os.getenv('AWS_SECRET_ACCESS_KEY', 'supersecret')
+    bucket = 'modelos'
+    s3 = boto3.client(
+        's3',
+        endpoint_url=endpoint,
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name=os.getenv('AWS_DEFAULT_REGION', 'us-east-1'),
+    )
+    file_path = f"/tmp/{object_name}"
+    s3.download_file(bucket, object_name, file_path)
+    return file_path
 
 """
     Se define una petición tipo post para recibir los 
@@ -88,7 +97,7 @@ def create_item(item: Item):
         endpoint = os.getenv('MINIO_ENDPOINT', 'http://minio:9000')
         bucket = 'modelos'
         # Descargar modelo de minio en /tmp
-        path = descargarArchivo(f"{endpoint}/{bucket}/{item.modelo}")
+        path = descargarArchivo(item.modelo)
 
         modelo = joblib.load(path)
         pred = modelo.predict(X)
