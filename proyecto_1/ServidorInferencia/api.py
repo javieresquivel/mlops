@@ -79,6 +79,20 @@ def descargarArchivo(object_name):
 @app.post("/items/")
 def create_item(item: Item):
     if item.modelo in listar_modelos():
+        # Procesar variables categóricas usando encoders
+        try:
+            # Descargamos los encoders
+            encoders_path = descargarArchivo("encoders.pkl")
+            encoders = joblib.load(encoders_path)
+            
+            # Aplicar la transformación (texto -> número)
+            wilderness_encoded = encoders['Wilderness_Area'].transform([item.Wilderness_Area])[0]
+            soil_encoded = encoders['Soil_Type'].transform([item.Soil_Type])[0]
+        except Exception as e:
+            # Si fallan los encoders, notificamos al cliente
+            raise HTTPException(status_code=400, detail=f"Error al procesar variables categóricas (¿Subiste encoders.pkl a MinIO?): {str(e)}")
+
+        # Construir el vector de características numérico
         X = np.array([[
             item.Elevation,
             item.Aspect,
@@ -90,8 +104,8 @@ def create_item(item: Item):
             item.Hillshade_Noon,
             item.Hillshade_3pm,
             item.Horizontal_Distance_To_Fire_Points,
-            item.Wilderness_Area,
-            item.Soil_Type
+            int(wilderness_encoded),
+            int(soil_encoded)
         ]])
 
         endpoint = os.getenv('MINIO_ENDPOINT', 'http://minio:9000')
