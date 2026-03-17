@@ -40,13 +40,19 @@ def obtener_modelos():
     a tener en cuenta
 """
 class Item(BaseModel):
-    island:int
-    bill_length_mm:float
-    bill_depth_mm:float
-    flipper_length_mm:int
-    body_mass_g:int
-    sex:int
-    modelo:str # Se agregar el parametro de modelo al realizar la petición de predicción
+    Elevation: int
+    Aspect: int
+    Slope: int
+    Horizontal_Distance_To_Hydrology: int
+    Vertical_Distance_To_Hydrology: int
+    Horizontal_Distance_To_Roadways: int
+    Hillshade_9am: int
+    Hillshade_Noon: int
+    Hillshade_3pm: int
+    Horizontal_Distance_To_Fire_Points: int
+    Wilderness_Area: str
+    Soil_Type: str
+    modelo: str # Se agrega el parametro de modelo al realizar la petición de predicción
 
 """
     Se define una petición tipo post para recibir los 
@@ -57,12 +63,18 @@ class Item(BaseModel):
 def create_item(item: Item):
     if item.modelo in listar_modelos():
         X = np.array([[
-            item.island,
-            item.bill_length_mm,
-            item.bill_depth_mm,
-            item.flipper_length_mm,
-            item.body_mass_g,
-            item.sex
+            item.Elevation,
+            item.Aspect,
+            item.Slope,
+            item.Horizontal_Distance_To_Hydrology,
+            item.Vertical_Distance_To_Hydrology,
+            item.Horizontal_Distance_To_Roadways,
+            item.Hillshade_9am,
+            item.Hillshade_Noon,
+            item.Hillshade_3pm,
+            item.Horizontal_Distance_To_Fire_Points,
+            item.Wilderness_Area,
+            item.Soil_Type
         ]])
         modelo = joblib.load(f"/app/models/{item.modelo}")
         pred = modelo.predict(X)

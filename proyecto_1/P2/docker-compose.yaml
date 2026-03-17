@@ -3,7 +3,7 @@ services:
     build: .
     container_name: fastapi
     ports:
-      - '80:80'
+      - '8889:8889'
     volumes:
       - ./data:/data
       - ./main.py:/main.py

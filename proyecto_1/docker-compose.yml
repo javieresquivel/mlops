@@ -343,10 +343,10 @@ services:
     build: ./P2
     container_name: fastapi
     ports:
-      - '85:80'
+      - '8889:8889'
     volumes:
       - ./data:/data
-      - ./main.py:/main.py
+      - ./P2/main.py:/main.py
     restart: always
 
 volumes:
