@@ -92,10 +92,13 @@ services:
     volumes:
       - ./dags/models:/app/models
     environment:
+      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
       - MLFLOW_TRACKING_URI=http://mlflow:5000
       - AWS_ACCESS_KEY_ID=admin
       - AWS_SECRET_ACCESS_KEY=supersecret
-      
+    depends_on:
+      - mlflow
+
 volumes:
   postgres-db-volume:
   postgres-db-volume-train:

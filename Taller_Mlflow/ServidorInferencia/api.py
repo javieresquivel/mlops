@@ -2,119 +2,42 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from pathlib import Path
 import joblib,boto3,os
+import mlflow.pyfunc
 import numpy as np
 import requests
 
 app = FastAPI()
 MODELS_DIR = Path("/app/models")
 
-def listar_modelos():
-    #return [f.name for f in MODELS_DIR.iterdir() if f.is_file()]
-    endpoint = os.getenv('MINIO_ENDPOINT', 'http://minio:9000')
-    access_key = os.getenv('AWS_ACCESS_KEY_ID', 'admin')
-    secret_key = os.getenv('AWS_SECRET_ACCESS_KEY', 'supersecret')
-    bucket = 'modelos'
-    s3 = boto3.client(
-        's3',
-        endpoint_url=endpoint,
-        aws_access_key_id=access_key,
-        aws_secret_access_key=secret_key,
-        region_name=os.getenv('AWS_DEFAULT_REGION', 'us-east-1'),
-    )
-    response = s3.list_objects_v2(Bucket=bucket)
-    return [item['Key'] for item in response.get('Contents', [])]
+MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
+mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
-"""
-    Se listan los modelos o archivos presentes en el volumen compartido
-    entre los dos contenedores para que el usuario pueda decidir cual usar y 
-    se define la ruta /model en el api para tal fin
-"""
-@app.get("/models")
-def obtener_modelos():
-    modelos = listar_modelos()
-    return {"modelos": modelos}
+@app.on_event("startup")
+def load_model():
+    global model
+    model_name = "produccion"
+    alias = "pro"
+    model_uri = f"models:/{model_name}@{alias}"
+    model = mlflow.pyfunc.load_model(model_uri)
+    print(f"Modelo {model_name} (Producción) cargado exitosamente.")
 
-"""
-    Se define el modelo de datos con  base 
-    a las columnas usadas de la base de datos de 
-    pinguinos excluyendo las columnas que no se van 
-    a tener en cuenta
-"""
 class Item(BaseModel):
-    Elevation: int
-    Aspect: int
-    Slope: int
-    Horizontal_Distance_To_Hydrology: int
-    Vertical_Distance_To_Hydrology: int
-    Horizontal_Distance_To_Roadways: int
-    Hillshade_9am: int
-    Hillshade_Noon: int
-    Hillshade_3pm: int
-    Horizontal_Distance_To_Fire_Points: int
-    Wilderness_Area: str
-    Soil_Type: str
-    modelo: str # Se agrega el parametro de modelo al realizar la petición de predicción
+    island:int
+    bill_length_mm:float
+    bill_depth_mm:float
+    flipper_length_mm:int
+    body_mass_g:int
+    sex:int
 
-def descargarArchivo(object_name):
-    endpoint = os.getenv('MINIO_ENDPOINT', 'http://minio:9000')
-    access_key = os.getenv('AWS_ACCESS_KEY_ID', 'admin')
-    secret_key = os.getenv('AWS_SECRET_ACCESS_KEY', 'supersecret')
-    bucket = 'modelos'
-    s3 = boto3.client(
-        's3',
-        endpoint_url=endpoint,
-        aws_access_key_id=access_key,
-        aws_secret_access_key=secret_key,
-        region_name=os.getenv('AWS_DEFAULT_REGION', 'us-east-1'),
-    )
-    file_path = f"/tmp/{object_name}"
-    s3.download_file(bucket, object_name, file_path)
-    return file_path
-
-"""
-    Se define una petición tipo post para recibir los 
-    parametros de entrada para que el modelo previamente
-    entrenado pueda predecir el resultado
-"""
-@app.post("/items/")
-def create_item(item: Item):
-    if item.modelo in listar_modelos():
-        # Procesar variables categóricas usando encoders
-        try:
-            # Descargamos los encoders
-            encoders_path = descargarArchivo("encoders.pkl")
-            encoders = joblib.load(encoders_path)
-            
-            # Aplicar la transformación (texto -> número)
-            wilderness_encoded = encoders['Wilderness_Area'].transform([item.Wilderness_Area])[0]
-            soil_encoded = encoders['Soil_Type'].transform([item.Soil_Type])[0]
-        except Exception as e:
-            # Si fallan los encoders, notificamos al cliente
-            raise HTTPException(status_code=400, detail=f"Error al procesar variables categóricas (¿Subiste encoders.pkl a MinIO?): {str(e)}")
-
-        # Construir el vector de características numérico
-        X = np.array([[
-            item.Elevation,
-            item.Aspect,
-            item.Slope,
-            item.Horizontal_Distance_To_Hydrology,
-            item.Vertical_Distance_To_Hydrology,
-            item.Horizontal_Distance_To_Roadways,
-            item.Hillshade_9am,
-            item.Hillshade_Noon,
-            item.Hillshade_3pm,
-            item.Horizontal_Distance_To_Fire_Points,
-            int(wilderness_encoded),
-            int(soil_encoded)
-        ]])
-
-        endpoint = os.getenv('MINIO_ENDPOINT', 'http://minio:9000')
-        bucket = 'modelos'
-        # Descargar modelo de minio en /tmp
-        path = descargarArchivo(item.modelo)
-
-        modelo = joblib.load(path)
-        pred = modelo.predict(X)
-        return {"prediction": pred.tolist()} # Se retorna el resultado
-    else:
-        raise HTTPException(status_code=404, detail="Modelo no encontrado")
+@app.post("/predict")
+def predict(item: Item):
+    X = np.array([[
+        item.island,
+        item.bill_length_mm,
+        item.bill_depth_mm,
+        item.flipper_length_mm,
+        item.body_mass_g,
+        item.sex
+    ]])
+    pred = model.predict(X)
+    return {"prediction": pred.tolist()} # Se retorna el resultado
