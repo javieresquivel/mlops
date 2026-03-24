@@ -29,8 +29,22 @@ services:
       retries: 5 
       start_period: 5s 
     restart: always
+
+  postgres_train: 
+    image: postgres:15 
+    environment: 
+      POSTGRES_USER: postgres 
+      POSTGRES_PASSWORD: postgres 
+      POSTGRES_DB: postgres 
+    volumes: 
+      - postgres-db-volume-train:/var/lib/postgresql/data 
+    healthcheck: 
+      test: ["CMD", "pg_isready", "-U", "postgres"] 
+      interval: 10s 
+      retries: 5 
+      start_period: 5s 
+    restart: always
     
-  
   mlflow:
     build:
       context: mlflow
@@ -47,6 +61,11 @@ services:
     ports:
       - 5001:5000
     restart: always
+    command: >
+      mlflow server 
+      --backend-store-uri postgresql://mlflow:mlflow@postgres:5432/mlflow
+      --default-artifact-root s3://experimentos/artifacts
+      --host 0.0.0.0
 
   jupyter:
     build: ./jupyter
@@ -72,9 +91,13 @@ services:
       - "8989:80"
     volumes:
       - ./dags/models:/app/models
-
-
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=supersecret
+      
 volumes:
   postgres-db-volume:
+  postgres-db-volume-train:
   minio_data:
     driver: local
