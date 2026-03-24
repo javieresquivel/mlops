@@ -29,4 +29,22 @@ Al entrar a revisar los registros se tienen cargados los modelos en MINIO
 
 <img width="1156" height="515" alt="image" src="https://github.com/user-attachments/assets/27fa1ddc-1fbe-4ee9-afb8-fa1452c389c2" />
 
+## 5. Registro de ambientes de mlflow
+
+Se creó un ambiente de producción para enviar el que mejor resultado tuviera y que es el que va a usar el servidor de inferencia
+
+<img width="1605" height="408" alt="image" src="https://github.com/user-attachments/assets/23de4b7c-8272-40d8-9cd9-4825586ef6d3" />
+
+## 6. Consulta del modelo en producción a través de MLFLOW
+
+Por último se hizo la petición a MLFLOW desde FASTAPI estableciendo las variables de entorno para que internamente se pudiera conectar
+<img width="632" height="209" alt="image" src="https://github.com/user-attachments/assets/a620ecfe-78fc-43c4-a48d-fae2c66354b6" />
+
+Luego se carga el modelo de producción al arrancar el servidor de FASTAPI lo que permite realizar la inferencia
+
+<img width="1604" height="715" alt="image" src="https://github.com/user-attachments/assets/9c9f03e6-b661-4894-9a70-3f12bbfcda92" />
+
+
+
+
 
