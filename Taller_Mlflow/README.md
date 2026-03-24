@@ -29,4 +29,10 @@ Al entrar a revisar los registros se tienen cargados los modelos en MINIO
 
 <img width="1156" height="515" alt="image" src="https://github.com/user-attachments/assets/27fa1ddc-1fbe-4ee9-afb8-fa1452c389c2" />
 
+## 5. Registro de ambientes de mlflow
+
+Se creó un ambiente de producción para enviar el que mejor resultado tuviera y que es el que va a usar el servidor de inferencia
+
+<img width="1605" height="408" alt="image" src="https://github.com/user-attachments/assets/23de4b7c-8272-40d8-9cd9-4825586ef6d3" />
+
 
