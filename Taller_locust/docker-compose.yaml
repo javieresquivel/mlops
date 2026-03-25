@@ -1,0 +1,115 @@
+services:
+  minio:
+    container_name: Minio
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=supersecret
+    image: quay.io/minio/minio:latest
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - minio_data:/data
+
+    restart: unless-stopped
+
+  postgres: 
+    image: postgres:15 
+    environment: 
+      POSTGRES_USER: mlflow 
+      POSTGRES_PASSWORD: mlflow 
+      POSTGRES_DB: mlflow 
+    volumes: 
+      - postgres-db-volume:/var/lib/postgresql/data 
+    healthcheck: 
+      test: ["CMD", "pg_isready", "-U", "mlflow"] 
+      interval: 10s 
+      retries: 5 
+      start_period: 5s 
+    restart: always
+
+  postgres_train: 
+    image: postgres:15 
+    environment: 
+      POSTGRES_USER: postgres 
+      POSTGRES_PASSWORD: postgres 
+      POSTGRES_DB: postgres 
+    volumes: 
+      - postgres-db-volume-train:/var/lib/postgresql/data 
+    healthcheck: 
+      test: ["CMD", "pg_isready", "-U", "postgres"] 
+      interval: 10s 
+      retries: 5 
+      start_period: 5s 
+    restart: always
+    
+  mlflow:
+    build:
+      context: mlflow
+      # Assuming Dockerfile is in the mlflow directory
+      dockerfile: Dockerfile
+    container_name: MLflow
+    environment:
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: admin
+      AWS_SECRET_ACCESS_KEY: supersecret
+    depends_on:
+      - minio
+      - postgres
+    ports:
+      - 5001:5000
+    restart: always
+    command: >
+      mlflow server 
+      --backend-store-uri postgresql://mlflow:mlflow@postgres:5432/mlflow
+      --default-artifact-root s3://experimentos/artifacts
+      --host 0.0.0.0
+
+  jupyter:
+    build: ./jupyter
+    container_name: Jupyter
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./notebooks:/home/jovyan/work
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=supersecret
+      - PASSWORD=valentasecret
+    depends_on:
+      - mlflow
+    restart: always
+
+  app:
+    image: javieresquivel1/mlops:inferencia
+    ports:
+      - "8989:80"
+    environment:
+      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=supersecret
+    depends_on:
+      - mlflow
+
+  locust:
+    build:
+      context: .
+      dockerfile: Dockerfile.locust
+    container_name: locust
+    ports:
+      - "8089:8089"
+    depends_on:
+      - app
+    environment:
+      - LOCUST_HOST=http://app:80
+
+volumes:
+  postgres-db-volume:
+  postgres-db-volume-train:
+  minio_data:
+    driver: local
