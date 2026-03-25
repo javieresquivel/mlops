@@ -7,10 +7,17 @@
 - Santiago Serrano
 
 ## 1. Despliegue de servicios
-Se configuró el YML para montar todos los servicios requeridos adicionando un servicio BD llamado postgres_train para almacenar los datos del dataset penguins para entrenar el modelo
+Para el despliegue de la solución se utilizó **Docker Compose**, integrando los siguientes servicios:
 
-## 2. Creación del bucker
-Para que MLFLOW pudiera almacenar los datos se creó el bucket mlflow3
+*   **PostgreSQL (Metadata MLflow):** Se implementó una base de datos PostgreSQL para actuar como el *backend store* de MLflow, permitiendo persistir toda la metadata de los experimentos.
+*   **PostgreSQL (Dataset):** Se configuró un segundo servicio de base de datos llamado `postgres_train` destinado exclusivamente al almacenamiento del dataset de pingüinos para el proceso de entrenamiento.
+*   **MinIO (Artifact Store):** Se desplegó un servidor de almacenamiento compatible con S3 para gestionar los artefactos de los modelos.
+*   **Jupyter:** Se configuró un contenedor con Jupyter Lab para la limpieza de datos, el análisis exploratorio y la ejecución de los scripts de entrenamiento que interactúan con MLflow.
+*   **MLflow Server:** Gestiona el registro de experimentos y almacenamiento de modelos, conectado a la base de datos PostgreSQL y al almacenamiento MinIO. Se agregó `depends_on` para que se iniciara después de la base de datos `postgres` y MinIO.
+*   **Servidor de Inferencia (FastAPI):** Servicio que consume el modelo disponible en MLFLOW.
+
+## 2. Creación del bucket
+Para que MLFLOW pudiera almacenar los datos se creó el bucket `mlflow3`
 
 <img width="508" height="338" alt="image" src="https://github.com/user-attachments/assets/7dbc9e34-8157-43d0-b7d5-ac3d50fc2c5b" />
 
