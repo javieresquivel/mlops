@@ -86,8 +86,8 @@ services:
 
   app:
     image: javieresquivel1/mlops:inferencia
-    ports:
-      - "8989:80"
+    #ports:
+    #  - "8989:80"
     environment:
       - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
       - MLFLOW_TRACKING_URI=http://mlflow:5000
@@ -95,21 +95,23 @@ services:
       - AWS_SECRET_ACCESS_KEY=supersecret
     depends_on:
       - mlflow
-
-  locust:
-    build:
-      context: .
-      dockerfile: Dockerfile.locust
-    container_name: locust
-    ports:
-      - "8089:8089"
-    depends_on:
-      - app
-    environment:
-      - LOCUST_HOST=http://app:80
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    deploy:
+      replicas: 4
+      resources:
+        limits:
+          memory: 256M
 
 volumes:
   postgres-db-volume:
   postgres-db-volume-train:
   minio_data:
     driver: local
+
+networks:
+  mlops-net:
+    external: true
+
