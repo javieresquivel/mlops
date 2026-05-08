@@ -1,0 +1,6 @@
+pandas>=2.3.2
+scikit-learn==1.7.1
+mysql-connector-python==9.4.0
+mlflow==3.4.0
+boto3
+seaborn
