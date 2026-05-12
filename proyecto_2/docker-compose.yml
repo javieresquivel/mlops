@@ -43,7 +43,7 @@
 #                                Default: ''
 #
 # Feel free to modify this file to suit your needs.
----
+version: '3.8'
 x-airflow-common:
   &airflow-common
   # In order to add custom dependencies or upgrade provider packages you can use your extended image.
@@ -66,9 +66,11 @@ x-airflow-common:
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
     AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY}
-    AIRFLOW__LOGGING__WORKER_LOG_SERVER_HOST: airflow-worker
-    AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT: "8793"  
-    MLFLOW_S3_ENDPOINT_URL: http://10.43.100.99:8000
+    #AIRFLOW__LOGGING__WORKER_LOG_SERVER_HOST: airflow-worker
+    #AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT: "8793"  
+    AIRFLOW__CELERY__WORKER_LOG_LEVEL: INFO
+    AIRFLOW__CELERY__WORKER_HOSTNAME: "worker@%h"
+    MLFLOW_S3_ENDPOINT_URL: http://minio:8000
     AWS_ACCESS_KEY_ID: admin
     AWS_SECRET_ACCESS_KEY: supersecret
     AWS_DEFAULT_REGION: "us-east-1"
@@ -89,7 +91,7 @@ x-airflow-common:
     DB_NAME: training
     MODELS_DIR: /models
     PREDICT_API_URL: http://127.0.0.1:8013
-    MLFLOW_TRACKING_URI: http://mlflow:5000
+    MLFLOW_TRACKING_URI: http://mlflow:8003
     BATCH_SIZE: 15000
   volumes:
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
@@ -167,11 +169,13 @@ services:
 
   airflow-worker: 
     <<: *airflow-common
-    command: celery worker
+    command: airflow celery worker
+    hostname: airflow-worker-1 
+    container_name: airflow-worker-1
     healthcheck:
       test:
         - "CMD-SHELL"
-        - 'celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
+        - 'celery --app airflow.executors.celery_executor.app inspect ping -d "celery@airflow-worker-1"'
       interval: 30s
       timeout: 10s
       retries: 5
@@ -187,11 +191,11 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
-  airflow-triggerer: # Required for Airflow 2.2+ (Camilo)
+  airflow-triggerer: # Required for Airflow 2.2+
     <<: *airflow-common
     command: triggerer
     healthcheck:
-      test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
+      test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "airflow-worker-1"']
       interval: 30s
       timeout: 10s
       retries: 5
@@ -267,7 +271,7 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
-  mysql_db: # Servicio de base de datos MySQL para la aplicación de entrenamiento. (Jonathan)
+  mysql_db: # Servicio de base de datos MySQL para la aplicación de entrenamiento.
     image: mysql:8.4
     environment:
       MYSQL_ROOT_PASSWORD: password
@@ -279,7 +283,7 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
   
-  minio: # Servicio para MinIO (Almacenamiento de objetos S3 compatible). (Jesús)
+  minio: # Servicio para MinIO (Almacenamiento de objetos S3 compatible).
     container_name: Minio
     command: server /data --console-address ":8001"
     environment:
@@ -323,7 +327,7 @@ services:
     depends_on:
       - minio
     ports:
-      - 8003:5000
+      - 8003:8003
     volumes:
       - ./mlflowdb:/app/mlflowdb
     restart: always
@@ -354,7 +358,7 @@ services:
     user: root
     environment:
       - JUPYTER_ENABLE_LAB=yes
-      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MLFLOW_TRACKING_URI=http://mlflow:8003
       - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
       - AWS_ACCESS_KEY_ID=admin
       - AWS_SECRET_ACCESS_KEY=supersecret
