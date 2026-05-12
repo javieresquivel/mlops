@@ -1,0 +1,22 @@
+[project]
+name = "api"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "boto3>=1.40.45",
+    "fastapi>=0.116.1",
+    "mlflow==3.12.0",
+    "pandas>=2.3.2",
+    "pymysql>=1.1.2",
+    "python-dotenv>=1.1.1",
+    "requests>=2.32.5",
+    "scikit-learn==1.7.1",
+    "setuptools>=80.9.0",
+    "sqlalchemy>=2.0.43",
+    "uvicorn>=0.35.0",
+    "prometheus-client>=0.23.1",
+    "dill",
+    "python-multipart>=0.0.28",
+]

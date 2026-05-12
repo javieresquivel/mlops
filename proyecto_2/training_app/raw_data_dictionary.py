@@ -51,7 +51,5 @@ RAW_COLUMN_NAMES = [
     'readmitted'
     ]
 
-URL = 'http://10.43.100.103:8080/data?group_number=4'
-
 def get_raw_column_names():
     return RAW_COLUMN_NAMES

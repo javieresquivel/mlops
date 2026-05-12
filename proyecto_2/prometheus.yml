@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 15s # Frecuencia con la que recoge datos
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['api:80']

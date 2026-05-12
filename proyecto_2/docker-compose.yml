@@ -70,7 +70,7 @@ x-airflow-common:
     #AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT: "8793"  
     AIRFLOW__CELERY__WORKER_LOG_LEVEL: INFO
     AIRFLOW__CELERY__WORKER_HOSTNAME: "worker@%h"
-    MLFLOW_S3_ENDPOINT_URL: http://minio:8000
+    MLFLOW_S3_ENDPOINT_URL: http://minio:9000
     AWS_ACCESS_KEY_ID: admin
     AWS_SECRET_ACCESS_KEY: supersecret
     AWS_DEFAULT_REGION: "us-east-1"
@@ -371,6 +371,42 @@ services:
       - PREDICT_API_URL=http://127.0.0.1:8013
     restart: always
 
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "8020:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "8021:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus
+
+  api:
+    image: javieresquivel123/mlops:v2.0
+    #build: api/.
+    ports:
+      - "8015:80" 
+      # Mapea el puerto 80 del contenedor al puerto 8989 del host.
+    environment:
+      - MODELS_DIR=/app/models
+      - MLFLOW_TRACKING_URI=http://mlflow:8003
+      - MODEL_NAME=diabetes-model
+      - MODEL_STAGE=prod
+    volumes:
+      - './models:/app/models'
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80", "--reload"]
+    depends_on:
+      - prometheus
+
 volumes:
   minio_data:
   mysql_data:
@@ -380,3 +416,4 @@ volumes:
   mysql_ml_data:
     driver: local
   airflow-logs:
+  prometheus_data:
