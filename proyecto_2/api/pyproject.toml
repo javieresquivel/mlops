@@ -19,4 +19,5 @@ dependencies = [
     "prometheus-client>=0.23.1",
     "dill",
     "python-multipart>=0.0.28",
+    "cloudpickle==3.1.1",
 ]

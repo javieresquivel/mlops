@@ -61,8 +61,9 @@ def mark_first_run_done():
 with DAG (dag_id="training_dag",
     description="Entrenando modelos",
     schedule_interval=timedelta(minutes=4, seconds=0),   # every 5 minutes and 20 seconds
-    start_date=datetime(2026, 5, 13, 0, 0, 0),   # change as needed
+    start_date=datetime(2026, 5, 15, 21, 8, 0),   # change as needed
     catchup=False,
+
     max_active_runs=7,
     is_paused_upon_creation=False
 ) as dag:

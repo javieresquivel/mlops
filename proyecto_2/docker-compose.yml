@@ -391,8 +391,8 @@ services:
       - prometheus
 
   api:
-    image: javieresquivel123/mlops:v2.0
-    #build: api/.
+    #image: javieresquivel123/mlops:v2.0
+    build: api/.
     ports:
       - "8015:80" 
       # Mapea el puerto 80 del contenedor al puerto 8989 del host.

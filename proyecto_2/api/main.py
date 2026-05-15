@@ -56,14 +56,14 @@ def normalize_request(req: ModelPredictionRequest):
     X_new = X_new[NORMALIZED_COLUMNS]
     print("X_new in normalize_request", X_new)
     # Convert to plain Python so FastAPI can serialize it
-    return X_new.astype(float).to_numpy().tolist()
+    return X_new
 
 REQUEST_COUNT = Counter('predict_requests_total', 'Total de peticiones de predicción')
 REQUEST_LATENCY = Histogram('predict_latency_seconds', 'Tiempo de latencia de predicción')
 
 @app.post("/predict")
 async def predict_model(
-    normalized_req: list[list[float]] = Depends(normalize_request)
+    X_new_df: pd.DataFrame = Depends(normalize_request)
 ):
     try:
         import time
@@ -72,16 +72,21 @@ async def predict_model(
         with REQUEST_LATENCY.time():
             time.sleep(random.uniform(0.1, 0.3))
         # Convertimos el objeto request a un diccionario
+        """
         model = joblib.load(MODEL_PATH)
         if model is None:
             raise HTTPException(status_code=404, detail=f"Model {MODEL_NAME} not found.")
+        """
+        model_uri = f"models:/{MODEL_NAME}@{MODEL_STAGE}"
+        model = mlflow.pyfunc.load_model(model_uri)
+
         print(f"Model {MODEL_NAME} loaded from {MODEL_PATH}")
-        features = normalized_req        
-        prediction = model.predict(np.array(features))
+        #features = normalized_req        
+        prediction = model.predict(X_new_df)
         print("prediction in predict_model", prediction)
         return {
            "prediction": int(prediction[0]),
-           "features": features
+           "features": X_new_df.astype(float).to_numpy().tolist()
         }
     except HTTPException as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
