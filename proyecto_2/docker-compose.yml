@@ -407,6 +407,16 @@ services:
     depends_on:
       - prometheus
 
+  webapp:
+    build: webapp/.
+    ports:
+      - "8014:8014"
+    environment:
+      - PREDICT_API_URL=http://api:80
+    command: ["streamlit", "run", "streamlit_predict_app.py","--server.port","8014"]
+    depends_on:
+      - api
+
 volumes:
   minio_data:
   mysql_data:
