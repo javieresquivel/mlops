@@ -90,7 +90,7 @@ x-airflow-common:
     DB_PASSWORD: password
     DB_NAME: training
     MODELS_DIR: /models
-    PREDICT_API_URL: http://127.0.0.1:8013
+    PREDICT_API_URL: http://api
     MLFLOW_TRACKING_URI: http://mlflow:8003
     BATCH_SIZE: 15000
   volumes:
@@ -282,6 +282,14 @@ services:
       - "8005:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 1G
+        reservations:
+          cpus: '0.20'
+          memory: 512M
   
   minio: # Servicio para MinIO (Almacenamiento de objetos S3 compatible).
     container_name: Minio
@@ -344,6 +352,14 @@ services:
       - "8004:3306"
     volumes:
       - mysql_ml_data:/var/lib/mysql
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+        reservations:
+          cpus: '0.20'
+          memory: 256M
   
   jupyter:
     build:
@@ -393,6 +409,7 @@ services:
   api:
     #image: javieresquivel123/mlops:v2.0
     build: api/.
+    user: "50000:0"
     ports:
       - "8015:80" 
       # Mapea el puerto 80 del contenedor al puerto 8989 del host.
@@ -401,11 +418,41 @@ services:
       - MLFLOW_TRACKING_URI=http://mlflow:8003
       - MODEL_NAME=diabetes-model
       - MODEL_STAGE=prod
+      - DB_HOST=mysql_db
+      - DB_PORT=3306
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - DB_NAME=training
     volumes:
       - './models:/app/models'
     command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80", "--reload"]
     depends_on:
       - prometheus
+      - mysql_db
+    deploy:
+      resources:
+        limits:
+          cpus: '1.50'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  locust:
+    build:
+      context: ./locust
+      dockerfile: Dockerfile.locust
+    container_name: locust
+    ports:
+      - "8089:8089"
+    environment:
+      - LOCUST_HOST=http://api:80
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    depends_on:
+      - api
 
   webapp:
     build: webapp/.
