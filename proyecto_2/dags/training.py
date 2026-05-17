@@ -60,8 +60,8 @@ def mark_first_run_done():
 
 with DAG (dag_id="training_dag",
     description="Entrenando modelos",
-    schedule_interval=timedelta(minutes=4, seconds=0),   # every 5 minutes and 20 seconds
-    start_date=datetime(2026, 5, 15, 21, 8, 0),   # change as needed
+    schedule_interval=timedelta(minutes=10, seconds=0),   # every 5 minutes and 20 seconds
+    start_date=datetime(2026, 5, 13, 0, 0, 0),   # change as needed
     catchup=False,
 
     max_active_runs=7,
@@ -105,7 +105,8 @@ with DAG (dag_id="training_dag",
                        python_callable=save_all_clean_data)
     
     train_model = PythonOperator(task_id="train_model",
-                      python_callable=train_and_publish_best)
+                      python_callable=train_and_publish_best,
+                      op_kwargs={"batch_number": "{{ var.value.training_dag_run_count }}"})
     
 
     join_after_branch = EmptyOperator(

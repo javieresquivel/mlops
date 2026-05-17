@@ -7,6 +7,9 @@ from sklearn.model_selection import GridSearchCV, train_test_split
 from sklearn.ensemble import RandomForestClassifier
 import os
 import requests
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import classification_report, confusion_matrix, precision_recall_fscore_support
 
 print(mlflow.__version__)
 out_dir = os.getenv("MODELS_DIR", "./models")
@@ -30,7 +33,7 @@ mlflow.autolog(log_input_examples= True, log_model_signatures = True, log_models
               disable = False, exclusive = False, disable_for_unsupported_versions = False,
                silent = False)
 
-def trainModel():
+def trainModel(batch_number=None):
   params = {
     # "n_estimators": [33, 66, 200],
     # "max_depth": [2, 4, 6],
@@ -48,11 +51,38 @@ def trainModel():
   print("y shape", y.shape)
   X_train, X_test, y_train, y_test = train_test_split(X, y)
   with mlflow.start_run(run_name="autolog_with_grid_search") as run:
+      if batch_number:
+          mlflow.set_tag("batch_number", str(batch_number))
       searcher.fit(X_train, y_train)
       best = searcher.best_estimator_
       print("best parameter ")
       test_score = best.score(X_test, y_test)
       mlflow.log_metric("test_score", float(test_score))
+      
+      # --- Extra Metrics and Artifacts ---
+      y_pred = best.predict(X_test)
+      precision, recall, f1, _ = precision_recall_fscore_support(y_test, y_pred, average='weighted')
+      mlflow.log_metric("precision", float(precision))
+      mlflow.log_metric("recall", float(recall))
+      mlflow.log_metric("f1_score", float(f1))
+
+      # Classification Report
+      report = classification_report(y_test, y_pred)
+      with open("classification_report.txt", "w") as f:
+          f.write(report)
+      mlflow.log_artifact("classification_report.txt")
+
+      # Confusion Matrix Plot
+      plt.figure(figsize=(8, 6))
+      cm = confusion_matrix(y_test, y_pred)
+      sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+      plt.xlabel('Predicted')
+      plt.ylabel('Actual')
+      plt.title('Confusion Matrix')
+      plt.savefig("confusion_matrix.png")
+      mlflow.log_artifact("confusion_matrix.png")
+      plt.close()
+
       sig = infer_signature(X_train, best.predict(X_train))
       input_ex = X_train[:5]
 
@@ -109,8 +139,8 @@ def send_preprocessor_file():
     print("Failed to send preprocessor file")
 
 
-def train_and_publish_best():
-  new_version, new_metric = trainModel()
+def train_and_publish_best(batch_number=None):
+  new_version, new_metric = trainModel(batch_number)
 
   client = MlflowClient()
 
