@@ -1,38 +1,33 @@
-from locust import task, between
-from locust.contrib.fasthttp import FastHttpUser
+from locust import HttpUser, task, between
 
-class UsuarioDeCarga(FastHttpUser):
-    # Tiempo de espera entre tareas por usuario simulado (en segundos)
+class UsuarioDeCarga(HttpUser):
     wait_time = between(1, 3)
-    connections = 800         # pool grande por worker
-    max_reqs_per_conn = 0 
+
     @task
     def hacer_inferencia(self):
         payload = {
-            "encounter_id": 39877476,
-            "patient_nbr": 4226301,
             "race": "Caucasian",
-            "gender": "Male",
+            "gender": "Female",
             "age": "[50-60)",
-            "weight": "",
+            "weight": "?",
             "admission_type_id": 1,
             "discharge_disposition_id": 1,
             "admission_source_id": 7,
-            "time_in_hospital": 2,
-            "payer_code": "",
-            "medical_specialty": "Family/GeneralPractice",
-            "num_lab_procedures": 35,
-            "num_procedures": 0,
-            "num_medications": 7,
+            "time_in_hospital": 3,
+            "payer_code": "?",
+            "medical_specialty": "InternalMedicine",
+            "num_lab_procedures": 40,
+            "num_procedures": 1,
+            "num_medications": 15,
             "number_outpatient": 0,
             "number_emergency": 0,
             "number_inpatient": 0,
-            "diag_1": "434",
-            "diag_2": "250.52",
-            "diag_3": "250.42",
+            "diag_1": "250.7",
+            "diag_2": "402",
+            "diag_3": "401",
             "number_diagnoses": 9,
-            "max_glu_serum": "",
-            "A1Cresult": "",
+            "max_glu_serum": "None",
+            "A1Cresult": "None",
             "metformin": "No",
             "repaglinide": "No",
             "nateglinide": "No",
@@ -57,12 +52,11 @@ class UsuarioDeCarga(FastHttpUser):
             "metformin_rosiglitazone": 0.0,
             "metformin_pioglitazone": 0.0,
             "change_m": 0.0,
-            "diabetesMed": "YES"
-            }
- 
+            "diabetesMed": "No"
+        }
         # Enviar una petición POST al endpoint /predict
-        # response = self.client.get("/models", json=payload)
-        response = self.client.post("/predict", json=payload)
-        # Opcional: validación de respuesta
-        if response.status_code != 200:
-            print("Error en la inferencia:", response.text)
+        with self.client.post("/predict", json=payload, catch_response=True) as response:
+            if response.status_code == 200:
+                response.success()
+            else:
+                response.failure(f"Error {response.status_code}: {response.text}")
