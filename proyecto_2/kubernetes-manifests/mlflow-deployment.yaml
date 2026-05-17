@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: ./kompose convert -f docker-compose.yml -o kubernetes-manifests/ --volumes hostPath
+    kompose.version: 1.26.0 (40646f47)
+  labels:
+    io.kompose.service: mlflow
+  name: mlflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: mlflow
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: ./kompose convert -f docker-compose.yml -o kubernetes-manifests/ --volumes hostPath
+        kompose.version: 1.26.0 (40646f47)
+      labels:
+        io.kompose.network/proyecto-2-default: "true"
+        io.kompose.service: mlflow
+    spec:
+      containers:
+        - env:
+            - name: AWS_ACCESS_KEY_ID
+              value: admin
+            - name: AWS_DEFAULT_REGION
+              value: us-east-1
+            - name: AWS_S3_FORCE_PATH_STYLE
+              value: "true"
+            - name: AWS_SECRET_ACCESS_KEY
+              value: supersecret
+            - name: MLFLOW_S3_ENDPOINT_URL
+              value: http://minio:9000
+          image: mlflow
+          name: mlflow
+          ports:
+            - containerPort: 8003
+              hostPort: 8003
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /app/mlflowdb
+              name: mlflow-hostpath0
+      restartPolicy: Always
+      volumes:
+        - hostPath:
+            path: /home/ubuntu/Proyects/MLOPS_Talleres/mlops/proyecto_2/mlflowdb
+          name: mlflow-hostpath0

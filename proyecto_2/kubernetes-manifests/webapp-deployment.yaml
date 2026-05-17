@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: ./kompose convert -f docker-compose.yml -o kubernetes-manifests/ --volumes hostPath
+    kompose.version: 1.26.0 (40646f47)
+  labels:
+    io.kompose.service: webapp
+  name: webapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: webapp
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: ./kompose convert -f docker-compose.yml -o kubernetes-manifests/ --volumes hostPath
+        kompose.version: 1.26.0 (40646f47)
+      labels:
+        io.kompose.network/proyecto-2-default: "true"
+        io.kompose.service: webapp
+    spec:
+      containers:
+        - args:
+            - streamlit
+            - run
+            - streamlit_predict_app.py
+            - --server.port
+            - "8014"
+          env:
+            - name: PREDICT_API_URL
+              value: http://api:80
+          image: webapp
+          name: webapp
+          ports:
+            - containerPort: 8014
+              hostPort: 8014
+              protocol: TCP
+      restartPolicy: Always

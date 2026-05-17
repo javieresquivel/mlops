@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kompose.cmd: ./kompose convert -f docker-compose.yml -o kubernetes-manifests/ --volumes hostPath
+    kompose.version: 1.26.0 (40646f47)
+  labels:
+    io.kompose.service: grafana
+  name: grafana
+spec:
+  ports:
+    - name: "8021"
+      port: 8021
+      targetPort: 3000
+  selector:
+    io.kompose.service: grafana

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kompose.cmd: ./kompose convert -f docker-compose.yml -o kubernetes-manifests/ --volumes hostPath
+    kompose.version: 1.26.0 (40646f47)
+  labels:
+    io.kompose.service: locust
+  name: locust
+spec:
+  ports:
+    - name: "8089"
+      port: 8089
+      targetPort: 8089
+  selector:
+    io.kompose.service: locust
