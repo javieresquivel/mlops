@@ -25,7 +25,7 @@ spec:
         - env:
             - name: LOCUST_HOST
               value: http://api:80
-          image: locust
+          image: javieresquivel123/locustdiabetes:v1.0
           name: locust
           ports:
             - containerPort: 8089

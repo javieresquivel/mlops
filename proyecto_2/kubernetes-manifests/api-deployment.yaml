@@ -51,7 +51,7 @@ spec:
               value: diabetes-model
             - name: MODEL_STAGE
               value: prod
-          image: api
+          image: javieresquivel123/mlops:v3.0
           name: api
           ports:
             - containerPort: 80
@@ -63,7 +63,7 @@ spec:
               memory: "536870912"
             requests:
               cpu: 250m
-              memory: "402653184"
+              memory: "268435456"
           volumeMounts:
             - mountPath: /app/models
               name: api-hostpath0

@@ -31,7 +31,7 @@ spec:
           env:
             - name: PREDICT_API_URL
               value: http://api:80
-          image: webapp
+          image: javieresquivel123/webappdiabetes:v1.0
           name: webapp
           ports:
             - containerPort: 8014

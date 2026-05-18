@@ -192,22 +192,69 @@ Para arrancar de forma local toda la suite de servicios mediante Docker Compose:
    docker-compose ps
    ```
 
-### Opcion 2: Despliegue en Cluster de Kubernetes
+### Opcion 2: Despliegue en Cluster de Kubernetes (con MicroK8s)
 
-Para desplegar los manifiestos YAML generados en su cluster local de Kubernetes:
+Para desplegar los manifiestos YAML generados en su cluster local utilizando **MicroK8s**, siga las siguientes instrucciones paso a paso:
 
-1. Cree el directorio fisico en el nodo local para el volumen de datos persistente de la base de datos principal, como se define en `mysql-db-deployment.yaml`:
-   ```bash
-   sudo mkdir -p /home/ubuntu/Proyects/k8s_data/mysql-db
-   sudo chmod -R 777 /home/ubuntu/Proyects/k8s_data/mysql-db
-   ```
-2. Aplique de forma masiva todos los manifiestos configurados en el directorio:
-   ```bash
-   kubectl apply -f kubernetes-manifests/
-   ```
-3. Verifique el despliegue correcto y ejecucion de los Pods y Servicios:
-   ```bash
-   kubectl get pods -w
-   kubectl get svc
-   ```
-4. Podra interactuar con cada una de las interfaces graficas y APIs a traves de los puertos host asignados en Kubernetes (Webserver de Airflow en el puerto `8080`, Streamlit en el `8014`, API de Inferencia en el `8015`, MLflow en el `8003`, Locust en el `8089` y Grafana en el `8021`).
+#### 1. Iniciar MicroK8s y Verificar Estado
+Asegurese de que el servicio de MicroK8s este activo y listo:
+```bash
+# Iniciar el cluster en caso de que este detenido
+microk8s start
+
+# Esperar a que todos los servicios internos esten listos
+microk8s status --wait-ready
+```
+
+#### 2. Habilitar Addons Necesarios
+Habilite el servicio de resolucion de nombres DNS interno, indispensable para que los pods se comuniquen por nombre de servicio (por ejemplo, para que la API localice a `mysql-db` o `mlflow`):
+```bash
+microk8s enable dns
+```
+
+#### 3. Configurar Alias de kubectl (Opcional)
+Para evitar escribir `microk8s kubectl` en cada comando, cree un alias permanente para la sesion actual o agreguelo a su configuracion de terminal:
+```bash
+# Para la sesion actual
+alias kubectl="microk8s kubectl"
+
+# Para hacerlo permanente en su sistema
+echo "alias kubectl='microk8s kubectl'" >> ~/.bashrc
+source ~/.bashrc
+```
+
+#### 4. Preparar Directorios hostPath en el Nodo
+Dado que los manifiestos utilizan volumenes de tipo `hostPath` para persistir los datos localmente en el nodo host, cree los directorios correspondientes con los permisos necesarios:
+```bash
+sudo mkdir -p /home/ubuntu/Proyects/k8s_data/mysql-db
+sudo chmod -R 777 /home/ubuntu/Proyects/k8s_data/mysql-db
+```
+
+#### 5. Aplicar los Manifiestos
+Despliegue todos los Deployments y Services generados de manera masiva:
+```bash
+kubectl apply -f kubernetes-manifests/
+```
+
+#### 6. Monitorear el Estado del Despliegue
+Espere a que todos los Pods cambien su estado a `Running` y esten saludables:
+```bash
+# Monitorear Pods
+kubectl get pods -w
+
+# Validar Services y Puertos expuestos
+kubectl get svc
+```
+
+Una vez listos, podra interactuar con cada una de las interfaces graficas y APIs a traves de los puertos host asignados (Webserver de Airflow en el puerto `8080`, Streamlit en el `8014`, API de Inferencia en el `8015`, MLflow en el `8003`, Locust en el `8089` y Grafana en el `8021`).
+
+#### 7. Detener los Servicios y MicroK8s
+Si desea detener y limpiar los recursos desplegados:
+```bash
+# Eliminar recursos del cluster
+kubectl delete -f kubernetes-manifests/
+
+# Detener el demonio de MicroK8s para liberar memoria
+microk8s stop
+```
+

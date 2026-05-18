@@ -104,7 +104,7 @@ spec:
             - name: _AIRFLOW_WWW_USER_USERNAME
               value: airflow
             - name: _PIP_ADDITIONAL_REQUIREMENTS
-          image: airflow-init
+          image: javieresquivel123/airflowdiabetes:v1.0
           name: airflow-init
           volumeMounts:
             - mountPath: /sources
@@ -112,5 +112,5 @@ spec:
       restartPolicy: Always
       volumes:
         - hostPath:
-            path: /home/ubuntu/Proyects/k8s_data/airflow-logs
+            path: /home/ubuntu/Proyects/MLOPS_Talleres/mlops/proyecto_2
           name: airflow-init-hostpath0

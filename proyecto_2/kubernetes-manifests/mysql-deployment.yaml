@@ -52,5 +52,5 @@ spec:
       restartPolicy: Always
       volumes:
         - hostPath:
-            path: /home/ubuntu/Proyects/k8s_data/mysql
+            path: /home/ubuntu/Proyects/k8s_data/mysql-ml
           name: mysql-ml-data

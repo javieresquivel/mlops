@@ -49,5 +49,5 @@ spec:
       restartPolicy: Always
       volumes:
         - hostPath:
-            path: /home/ubuntu/Proyects/k8s_data/minio
+            path: /home/ubuntu/Proyects/MLOPS_Talleres/mlops/proyecto_2
           name: minio-data
