@@ -439,9 +439,10 @@ services:
           memory: 256M
 
   locust:
-    build:
-      context: ./locust
-      dockerfile: Dockerfile.locust
+    image: javieresquivel123/locustdiabetes:v1.0
+    #build:
+    #  context: ./locust
+    #  dockerfile: Dockerfile.locust
     container_name: locust
     ports:
       - "8089:8089"
