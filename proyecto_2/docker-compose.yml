@@ -43,16 +43,14 @@
 #                                Default: ''
 #
 # Feel free to modify this file to suit your needs.
-version: '3.8'
+#version: '3.8'
 x-airflow-common:
   &airflow-common
   # In order to add custom dependencies or upgrade provider packages you can use your extended image.
   # Comment the image line, place your Dockerfile in the directory where you placed the docker-compose.yaml
   # and uncomment the "build" line below, Then run `docker-compose build` to build the images.
   # image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.6.0}
-  build: 
-    dockerfile: ./airflow/Dockerfile
-    context: .
+  image: javieresquivel123/airflowdiabetes:v1.0
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
@@ -321,10 +319,7 @@ services:
       "
 
   mlflow: # Servicio para MLflow. 
-    build:
-      context: mlflow
-      # Assuming Dockerfile is in the mlflow directory
-      dockerfile: Dockerfile
+    image: javieresquivel123/mlflowdiabetes:v1.0
     container_name: MLflow
     environment:
       MLFLOW_S3_ENDPOINT_URL: http://minio:9000
@@ -362,9 +357,7 @@ services:
           memory: 256M
   
   jupyter:
-    build:
-      context: training_app
-      dockerfile: Dockerfile
+    image: javieresquivel123/jupiterdiabetes:v1.0
     container_name: Jupyter
     ports:
       - "8006:8888"
@@ -408,8 +401,6 @@ services:
 
   api:
     image: javieresquivel123/mlops:v3.0
-    #build: api/.
-    user: "50000:0"
     ports:
       - "8015:80" 
       # Mapea el puerto 80 del contenedor al puerto 8989 del host.
@@ -440,9 +431,6 @@ services:
 
   locust:
     image: javieresquivel123/locustdiabetes:v1.0
-    #build:
-    #  context: ./locust
-    #  dockerfile: Dockerfile.locust
     container_name: locust
     ports:
       - "8089:8089"
@@ -456,7 +444,6 @@ services:
       - api
 
   webapp:
-    #build: webapp/.
     image: javieresquivel123/webappdiabetes:v1.0
     ports:
       - "8014:8014"
