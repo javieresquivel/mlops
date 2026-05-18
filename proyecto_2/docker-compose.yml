@@ -407,8 +407,8 @@ services:
       - prometheus
 
   api:
-    #image: javieresquivel123/mlops:v2.0
-    build: api/.
+    image: javieresquivel123/mlops:v3.0
+    #build: api/.
     user: "50000:0"
     ports:
       - "8015:80" 
@@ -455,7 +455,8 @@ services:
       - api
 
   webapp:
-    build: webapp/.
+    #build: webapp/.
+    image: javieresquivel123/webappdiabetes:v1.0
     ports:
       - "8014:8014"
     environment:
