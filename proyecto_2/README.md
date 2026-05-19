@@ -257,4 +257,32 @@ kubectl delete -f kubernetes-manifests/
 # Detener el demonio de MicroK8s para liberar memoria
 microk8s stop
 ```
+#### 8. Dificultades encontradas
+Principalmente se tuvo problema al pasar de docker compose a kubernetes. Al intentar convertir el docker-compose.yml a manifiestos usando kompose empezaron a aparecer errores
+<img width="1068" height="159" alt="image" src="https://github.com/user-attachments/assets/4635de94-3904-4154-ab05-dda71b7a1d0d" />
+
+Haciendo ajustes al archivo, aparecían nuevos 
+<img width="1600" height="1317" alt="image" src="https://github.com/user-attachments/assets/40824c96-523f-4a16-8cc6-1562e33ff3f0" />
+
+No obstante el el equipo del compañero usando windows con wsl no le presentó inconvenientes.
+
+Usando los mismos archivos se usó microk8s no obstante presentaba un error al intentar iniciar
+<img width="1443" height="154" alt="image" src="https://github.com/user-attachments/assets/0b8c28f1-3384-4e26-baf7-af3754b5eaed" />
+
+Después de indagar en interner al parecer era un issue por la versión, por lo tanto tocó especificar al momento de la instalación que se usara la versión 1.35 en vez de la 1.34 que estaba trayendo por defecto snap
+
+```
+sudo snap install microk8s --classic --channel=1.35
+```
+
+Con ese comando ya se pudo iniciar el servicio microk8s sin problema.
+
+
+
+
+
+
+
+
+
 
