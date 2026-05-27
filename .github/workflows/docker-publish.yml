@@ -6,8 +6,8 @@ on:
       - main  # O la rama que uses por defecto
     paths:
       - 'proyecto_final/api/**'
-      - 'proyecto_final/locust/**'
       - 'proyecto_final/mlflow/**'
+      - 'proyecto_final/airflow/**'
 
 jobs:
   build-and-push:
@@ -16,7 +16,7 @@ jobs:
     strategy:
       # matrix permite ejecutar el mismo job en paralelo para diferentes carpetas
       matrix:
-        service: [api, locust, mlflow]
+        service: [api, mlflow, airflow]
 
     steps:
       - name: Checkout repository
