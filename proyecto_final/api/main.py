@@ -21,6 +21,7 @@ from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from prometheus_client import Counter, Histogram, Info, generate_latest, CONTENT_TYPE_LATEST
+# comentario
 
 load_dotenv(dotenv_path=Path(__file__).with_name(".env"))
 
