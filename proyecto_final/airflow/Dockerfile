@@ -1,7 +1,7 @@
 ARG AIRFLOW_IMAGE_NAME=apache/airflow:2.11.1
 FROM ${AIRFLOW_IMAGE_NAME}
 
-COPY ./airflow/requirements.txt /requirements.txt
+COPY requirements.txt /requirements.txt
 
 USER root
 
