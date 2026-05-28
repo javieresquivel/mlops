@@ -31,7 +31,7 @@ logger = logging.getLogger("airflow.task")
 
 _DB_USER = os.getenv("DB_USER", "user")
 _DB_PASSWORD = os.getenv("DB_PASSWORD", "password")
-_DB_HOST = os.getenv("DB_HOST", "mysql_db")
+_DB_HOST = os.getenv("DB_HOST", "mysql-db")
 _DB_PORT = os.getenv("DB_PORT", "3306")
 _DB_NAME = os.getenv("DB_NAME", "training")
 

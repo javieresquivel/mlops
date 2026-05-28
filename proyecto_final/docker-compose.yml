@@ -50,7 +50,7 @@ x-airflow-common:
   # and uncomment the "build" line below, Then run `docker-compose build` to build the images.
   # image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.6.0}
   &airflow-common
-  image: javieresquivel123/airflowdiabetes:v1.0
+  image: javieresquivel123/proyecto-final-airflow:latest
   environment: &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
@@ -323,7 +323,7 @@ services:
 
   mlflow:
     # Servicio para MLflow. 
-    image: javieresquivel123/mlflowdiabetes:v1.0
+    image: javieresquivel123/proyecto-final-mlflow:latest
     container_name: MLflow
     environment:
       MLFLOW_S3_ENDPOINT_URL: http://minio:9000
@@ -370,9 +370,7 @@ services:
     restart: unless-stopped
 
   api:
-    build:
-      context: ./api
-      dockerfile: Dockerfile
+    image: javieresquivel123/proyecto-final-api:latest
     container_name: api
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:8003

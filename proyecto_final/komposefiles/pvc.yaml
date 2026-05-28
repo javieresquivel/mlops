@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-ml-pvc    # Este es el nombre que usaremos para enlazarlo
+spec:
+  accessModes:
+    - ReadWriteOnce     # Permite que el Pod lea y escriba
+  resources:
+    requests:
+      storage: 5Gi      # Asigna el tamaño que consideres necesario (ej. 5 Gigas)
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pvc    # Este es el nombre que usaremos para enlazarlo
+spec:
+  accessModes:
+    - ReadWriteOnce     # Permite que el Pod lea y escriba
+  resources:
+    requests:
+      storage: 5Gi      # Asigna el tamaño que consideres necesario (ej. 5 Gigas)
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-db-pvc    # Este es el nombre que usaremos para enlazarlo
+spec:
+  accessModes:
+    - ReadWriteOnce     # Permite que el Pod lea y escriba
+  resources:
+    requests:
+      storage: 5Gi      # Asigna el tamaño que consideres necesario (ej. 5 Gigas)
