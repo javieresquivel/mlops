@@ -1,32 +1,37 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: batch/v1
+kind: Job
+
 metadata:
+  name: airflow-init
+  labels:
+    io.kompose.service: airflow-init
   annotations:
     kompose.cmd: /home/javier/Descargas/kompose convert -f docker-compose.yml -o komposefiles/ --volumes hostPath
     kompose.version: 1.26.0 (40646f47)
-  labels:
-    io.kompose.service: airflow-init
-  name: airflow-init
+
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      io.kompose.service: airflow-init
-  strategy:
-    type: Recreate
   template:
     metadata:
+      labels:
+        io.kompose.service: airflow-init
       annotations:
         kompose.cmd: /home/javier/Descargas/kompose convert -f docker-compose.yml -o komposefiles/ --volumes hostPath
         kompose.version: 1.26.0 (40646f47)
-      labels:
-        io.kompose.service: airflow-init
+
     spec:
+      restartPolicy: OnFailure
+
       containers:
-        - args:
+        - name: airflow-init
+          image: javieresquivel123/proyecto-final-airflow:latest
+          imagePullPolicy: Always
+
+          command:
+            - /bin/bash
+
+          args:
             - -c
             - |
-              # Run DB migrations and create default user
               exec /entrypoint bash -c "
                 airflow db migrate &&
                 airflow users create \
@@ -37,8 +42,7 @@ spec:
                   --email admin@example.com \
                   --password airflow
               "
-          command:
-            - /bin/bash
+
           env:
             - name: AIRFLOW__API__AUTH_BACKENDS
               value: airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session
@@ -55,6 +59,7 @@ spec:
             - name: AIRFLOW__CORE__EXECUTOR
               value: CeleryExecutor
             - name: AIRFLOW__CORE__FERNET_KEY
+              value: ""
             - name: AIRFLOW__CORE__LOAD_EXAMPLES
               value: "false"
             - name: AIRFLOW__CORE__SQL_ALCHEMY_CONN
@@ -64,6 +69,7 @@ spec:
             - name: AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK
               value: "true"
             - name: AIRFLOW__WEBSERVER__SECRET_KEY
+              value: ""
             - name: AWS_ACCESS_KEY_ID
               value: admin
             - name: AWS_DEFAULT_REGION
@@ -103,14 +109,11 @@ spec:
             - name: _AIRFLOW_WWW_USER_USERNAME
               value: airflow
             - name: _PIP_ADDITIONAL_REQUIREMENTS
-          image: javieresquivel123/proyecto-final-airflow:latest
-          imagePullPolicy: Always
-          name: airflow-init
+              value: ""
           volumeMounts:
-            - mountPath: /sources
-              name: airflow-init-hostpath0
-      restartPolicy: Always
+            - name: airflow-init-hostpath0
+              mountPath: /sources
       volumes:
-        - hostPath:
+        - name: airflow-init-hostpath0
+          hostPath:
             path: /home/javier/Documentos/programacion/maestria/mlops/proyecto_final
-          name: airflow-init-hostpath0

@@ -109,12 +109,12 @@ spec:
       hostname: airflow-worker-1
       restartPolicy: Always
       volumes:
+        - name: airflow-logs
+          persistentVolumeClaim:
+            claimName: airflow-logs-pvc
         - hostPath:
             path: /home/javier/Documentos/programacion/maestria/mlops/proyecto_final/dags
           name: airflow-worker-hostpath0
-        - hostPath:
-            path: /home/javier/Documentos/programacion/maestria/mlops/proyecto_final
-          name: airflow-logs
         - hostPath:
             path: /home/javier/Documentos/programacion/maestria/mlops/proyecto_final/plugins
           name: airflow-worker-hostpath2
