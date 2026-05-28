@@ -82,6 +82,7 @@ spec:
               value: /opt/airflow:/opt/airflow/dags:/opt/airflow/plugins
             - name: _PIP_ADDITIONAL_REQUIREMENTS
           image: javieresquivel123/proyecto-final-airflow:latest
+          imagePullPolicy: Always
           livenessProbe:
             exec:
               command:
@@ -104,12 +105,12 @@ spec:
               name: airflow-triggerer-hostpath4
       restartPolicy: Always
       volumes:
+        - name: airflow-logs
+          persistentVolumeClaim:
+            claimName: airflow-logs-pvc
         - hostPath:
             path: /home/javier/Documentos/programacion/maestria/mlops/proyecto_final/dags
           name: airflow-triggerer-hostpath0
-        - hostPath:
-            path: /home/javier/Documentos/programacion/maestria/mlops/proyecto_final
-          name: airflow-logs
         - hostPath:
             path: /home/javier/Documentos/programacion/maestria/mlops/proyecto_final/plugins
           name: airflow-triggerer-hostpath2

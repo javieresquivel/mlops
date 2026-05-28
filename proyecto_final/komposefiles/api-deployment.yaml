@@ -22,6 +22,14 @@ spec:
       labels:
         io.kompose.service: api
     spec:
+      initContainers:
+        - name: wait-for-mysql
+          image: busybox:1.36
+          command:
+            - "sh"
+            - "-c"
+            - "until nc -zvw1 mysql-db 8005; do echo 'Esperando a que MySQL levante...'; sleep 2; done;"
+
       containers:
         - env:
             - name: DB_HOST
@@ -31,7 +39,7 @@ spec:
             - name: DB_PASSWORD
               value: password
             - name: DB_PORT
-              value: "3306"
+              value: "8005"
             - name: DB_USER
               value: user
             - name: MLFLOW_TRACKING_URI
@@ -43,6 +51,7 @@ spec:
             - name: MODEL_STAGE
               value: prod
           image: javieresquivel123/proyecto-final-api:latest
+          imagePullPolicy: Always
           name: api
           ports:
             - containerPort: 8000

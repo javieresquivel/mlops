@@ -45,6 +45,6 @@ spec:
               name: minio-data
       restartPolicy: Always
       volumes:
-        - hostPath:
-            path: /home/javier/Documentos/programacion/maestria/mlops/proyecto_final
-          name: minio-data
+        - name: minio-data
+          persistentVolumeClaim:
+            claimName: minio-pvc

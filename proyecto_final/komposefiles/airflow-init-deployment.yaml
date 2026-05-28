@@ -104,6 +104,7 @@ spec:
               value: airflow
             - name: _PIP_ADDITIONAL_REQUIREMENTS
           image: javieresquivel123/proyecto-final-airflow:latest
+          imagePullPolicy: Always
           name: airflow-init
           volumeMounts:
             - mountPath: /sources
