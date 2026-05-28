@@ -74,3 +74,32 @@ Dado que las imagenes a construir se van a publicar en Dockerhub lo primero que 
 Posteriormente se deben configurar las variables de secretos en el repositorio de github para que este tenga las credenciales para realizar la publicación
 
 <img width="2128" height="1189" alt="Captura desde 2026-05-27 09-35-25" src="https://github.com/user-attachments/assets/8cf6e6c6-9312-4abe-88eb-5f12625df6af" />
+
+## Kubernetes
+
+Para el despliegue a kubernetes se usa la herramienta kompose para convertir el `docker-compose.yml` a manifiestos ejecutando el comando:
+
+```kompose convert -f docker-compose.yml -o komposefiles/ --volumes hostPath``` 
+
+Una vez creados los archivos se debe solucionar el problema de lo volumenes ya que por defecto Kompose crea hostpath que son rutas a la misma carpeta y que generan problemas por permisos de escritura. Por lo tanto agregamos un archivo denominado `pvc.yml` que contiene la definición de los volumenes que vamos a usar. Este problema sucede principalmente con las bases de datos.
+
+<img width="1526" height="426" alt="image" src="https://github.com/user-attachments/assets/8bf5b68d-f689-4423-a2f4-7cf5ebe7f96a" />
+
+Luego se tiene que reemplazar el hostpath por el nombre del volumen en los archivos de tipo deployment
+
+<img width="571" height="153" alt="image" src="https://github.com/user-attachments/assets/9424afb7-9dcb-496c-8e09-d6437537a322" />
+
+Para que funcione correctamente el CI / CD se debe adjuntar en los deployment con imagenes propias la siguiente etiqueta
+
+```imagePullPolicy: Always```
+
+De lo contrario al contruir los contenedores toma la imagen del caché y no la última en docker hub que es lo que nos interesa
+
+
+
+
+
+
+
+
+
