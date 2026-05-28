@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 import requests
 import mlflow
+from mlflow import MlflowClient
 from mlflow.models import infer_signature
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split, GridSearchCV
@@ -42,6 +43,7 @@ logger = logging.getLogger("airflow.task")
 DATA_API_URL = os.getenv("DATA_API_URL", "http://data-api:80")
 RAW_TABLE_NAME = "raw_data"
 BATCH_LOG_TABLE = "batch_log"
+HISTORY_TABLE = "training_history"
 DEBUG_LIMIT = int(os.getenv("DEBUG_LIMIT", "1000"))
 
 COLUMNS = [
@@ -144,9 +146,20 @@ def _registrar_batch_log(run_id: str, group: int, batch_size: int, inserted: int
 # Task 1: Obtener batch desde data-api
 # ---------------------------------------------------------------------------
 
+def _next_group_number() -> int:
+    """Lee el último group_number de batch_log y devuelve el siguiente (1 si no hay/tabla no existe)."""
+    try:
+        with get_connection() as conn:
+            result = conn.execute(text(f"SELECT MAX(`group_number`) FROM `{BATCH_LOG_TABLE}`"))
+            max_group = result.scalar()
+        return (max_group or 0) + 1
+    except Exception:
+        return 1
+
+
 def fetch_batch(**context):
     """Obtiene un lote de la API y lo escribe directamente en raw_data + batch_log."""
-    group = (context.get("dag_run").conf or {}).get("group_number", 1)
+    group = _next_group_number()
     run_id = context["dag_run"].run_id
 
     logger.info("Obteniendo batch group_number=%s", group)
@@ -156,7 +169,8 @@ def fetch_batch(**context):
         with get_connection() as conn:
             conn.execute(text("DROP TABLE IF EXISTS raw_data"))
             conn.execute(text("DROP TABLE IF EXISTS clean_data"))
-        logger.info("Tablas raw_data y clean_data reiniciadas.")
+            conn.execute(text(f"DROP TABLE IF EXISTS `{BATCH_LOG_TABLE}`"))
+        logger.info("Tablas raw_data, clean_data y batch_log reiniciadas.")
         restart = requests.get(f"{DATA_API_URL}/restart_data_generation", params={"group_number": 1}, timeout=30)
         logger.info("Reinicio de data-api: HTTP %s", restart.status_code)
         raise AirflowSkipException("Datos completos — tablas y API reiniciadas para próximo ciclo.")
@@ -532,7 +546,20 @@ def decide_training(**context):
         context["ti"].xcom_push(key="training_decision", value={"train": False, "reason": reason})
         return "skip_training"
 
-    # Regla 2 — drift distribucional
+    # Regla 2 — sin modelo productivo registrado (primera vez)
+    try:
+        mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:8003"))
+        client = MlflowClient()
+        prod_mv = client.get_model_version_by_alias("real-estate-model", "prod")
+    except Exception:
+        prod_mv = None
+    if prod_mv is None:
+        reason = "No hay modelo productivo — entrenamiento inicial"
+        logger.info(reason)
+        context["ti"].xcom_push(key="training_decision", value={"train": True, "reason": reason})
+        return "train_model"
+
+    # Regla 3 — drift distribucional
     if reports["drift"] and reports["drift"].get("drift_detected"):
         cols = list(reports["drift"].get("drift_details", {}).keys())
         reason = f"Data drift detectado en: {cols}"
@@ -540,7 +567,7 @@ def decide_training(**context):
         context["ti"].xcom_push(key="training_decision", value={"train": True, "reason": reason})
         return "train_model"
 
-    # Regla 3 — categorías nuevas
+    # Regla 4 — categorías nuevas
     if reports["cats"] and reports["cats"].get("new_categories"):
         cats = reports["cats"]["new_categories"]
         reason = f"Nuevas categorías detectadas: {cats}"
@@ -548,7 +575,7 @@ def decide_training(**context):
         context["ti"].xcom_push(key="training_decision", value={"train": True, "reason": reason})
         return "train_model"
 
-    # Regla 4 — calidad deficiente (no entrenar si hay problemas graves)
+    # Regla 5 — calidad deficiente (no entrenar si hay problemas graves)
     quality = reports["quality"] or {}
     nulls = quality.get("critical_nulls", {})
     rangos = quality.get("invalid_ranges", {})
@@ -643,15 +670,18 @@ def evaluate_model(**context):
     y_train_pred = pipeline.predict(X_train)
 
     mae = mean_absolute_error(y_test, y_pred)
-    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+    mse = mean_squared_error(y_test, y_pred)
+    rmse = np.sqrt(mse)
     r2 = r2_score(y_test, y_pred)
     train_mae = mean_absolute_error(y_train, y_train_pred)
+    train_mse = mean_squared_error(y_train, y_train_pred)
+    train_rmse = np.sqrt(train_mse)
     train_r2 = r2_score(y_train, y_train_pred)
 
     # Reporte de métricas
     with open(os.path.join(artifacts_dir, "metrics.txt"), "w") as f:
-        f.write(f"MAE: {mae:.4f}\nRMSE: {rmse:.4f}\nR²: {r2:.4f}\n")
-        f.write(f"Train MAE: {train_mae:.4f}\nTrain R²: {train_r2:.4f}\n")
+        f.write(f"Test  MAE: {mae:.4f}  MSE: {mse:.4f}  RMSE: {rmse:.4f}  R²: {r2:.4f}\n")
+        f.write(f"Train MAE: {train_mae:.4f}  MSE: {train_mse:.4f}  RMSE: {train_rmse:.4f}  R²: {train_r2:.4f}\n")
 
     import matplotlib
     matplotlib.use("Agg")
@@ -690,8 +720,8 @@ def evaluate_model(**context):
     logger.info("Evaluación: MAE=%.2f, RMSE=%.2f, R²=%.4f", mae, rmse, r2)
 
     context["ti"].xcom_push(key="evaluation_report", value={
-        "mae": mae, "rmse": rmse, "r2": r2,
-        "train_mae": train_mae, "train_r2": train_r2,
+        "mae": mae, "mse": mse, "rmse": rmse, "r2": r2,
+        "train_mae": train_mae, "train_mse": train_mse, "train_rmse": train_rmse, "train_r2": train_r2,
         "artifacts_dir": artifacts_dir,
     })
 
@@ -724,12 +754,15 @@ def register_model(**context):
         mlflow.log_params(best.get_params())
 
         mlflow.log_metric("test_mae", eval_report["mae"])
+        mlflow.log_metric("test_mse", eval_report["mse"])
         mlflow.log_metric("test_rmse", eval_report["rmse"])
         mlflow.log_metric("test_r2", eval_report["r2"])
         mlflow.log_metric("train_mae", eval_report["train_mae"])
+        mlflow.log_metric("train_mse", eval_report["train_mse"])
+        mlflow.log_metric("train_rmse", eval_report["train_rmse"])
         mlflow.log_metric("train_r2", eval_report["train_r2"])
 
-        # Artefactos
+        # Artefactos (gráficos, reportes)
         artifacts_dir = eval_report.get("artifacts_dir")
         if artifacts_dir and os.path.exists(artifacts_dir):
             for fname in os.listdir(artifacts_dir):
@@ -739,7 +772,7 @@ def register_model(**context):
         result = mlflow.sklearn.log_model(
             sk_model=pipeline,
             artifact_path="model",
-            registered_model_name="diabetes-model",
+            registered_model_name="real-estate-model",
             signature=signature,
             input_example=X_train.iloc[:5],
         )
@@ -752,3 +785,228 @@ def register_model(**context):
         "version": result.registered_model_version,
         "run_id": run.info.run_id,
     })
+
+
+# ---------------------------------------------------------------------------
+# Task 12: Comparar candidato vs productivo (RF6)
+# ---------------------------------------------------------------------------
+
+def compare_with_production(**context):
+    """Compara métricas del candidato contra el modelo productivo en MLflow."""
+    eval_report = context["ti"].xcom_pull(task_ids="evaluate_model", key="evaluation_report")
+    reg_report = context["ti"].xcom_pull(task_ids="register_model", key="register_report")
+
+    candidate_mae = eval_report["mae"]
+    candidate_rmse = eval_report["rmse"]
+    candidate_version = reg_report["version"]
+    candidate_run_id = reg_report["run_id"]
+
+    mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:8003"))
+    client = MlflowClient()
+    MODEL_NAME = "real-estate-model"
+    ALIAS = "prod"
+
+    try:
+        prod_mv = client.get_model_version_by_alias(MODEL_NAME, ALIAS)
+        prod_version = int(prod_mv.version)
+        prod_run = client.get_run(prod_mv.run_id)
+        prod_mae = prod_run.data.metrics.get("test_mae")
+        prod_rmse = prod_run.data.metrics.get("test_rmse")
+    except Exception:
+        prod_version = None
+        prod_mae = None
+        prod_rmse = None
+
+    if prod_version is None:
+        should_promote = True
+        reason = "Primer modelo — no hay productivo con quien comparar"
+        mae_improvement = None
+        rmse_regression = None
+    else:
+        mae_improvement = ((prod_mae - candidate_mae) / prod_mae) * 100
+        rmse_regression = ((candidate_rmse - prod_rmse) / prod_rmse) * 100
+        # RF6: MAE >= 3% mejor, RMSE no empeora > 1%
+        if mae_improvement >= 3 and rmse_regression <= 1:
+            should_promote = True
+            reason = (
+                f"MAE mejora {mae_improvement:.2f}% (≥3%) y "
+                f"RMSE empeora {rmse_regression:.2f}% (≤1%)"
+            )
+        else:
+            should_promote = False
+            reason = (
+                f"No cumple: MAE mejora {mae_improvement:.2f}% (req ≥3%), "
+                f"RMSE empeora {rmse_regression:.2f}% (req ≤1%)"
+            )
+
+    report = {
+        "candidate_version": candidate_version,
+        "candidate_mae": candidate_mae,
+        "candidate_rmse": candidate_rmse,
+        "candidate_run_id": candidate_run_id,
+        "production_version": prod_version,
+        "production_mae": prod_mae,
+        "production_rmse": prod_rmse,
+        "mae_improvement_pct": mae_improvement,
+        "rmse_regression_pct": rmse_regression,
+        "should_promote": should_promote,
+        "reason": reason,
+    }
+
+    logger.info("Comparación: %s", reason)
+    context["ti"].xcom_push(key="comparison_report", value=report)
+
+
+# ---------------------------------------------------------------------------
+# Task 13: Decidir promoción (BranchPythonOperator)
+# ---------------------------------------------------------------------------
+
+def decide_promotion(**context):
+    """Bifurca según el resultado de la comparación."""
+    report = context["ti"].xcom_pull(task_ids="compare_with_production", key="comparison_report")
+    if report and report.get("should_promote"):
+        logger.info("Decisión: promover modelo")
+        return "promote_model"
+    logger.info("Decisión: rechazar modelo")
+    return "reject_model"
+
+
+# ---------------------------------------------------------------------------
+# Task 14: Promover modelo a producción
+# ---------------------------------------------------------------------------
+
+def promote_model(**context):
+    """Actualiza alias prod en MLflow y notifica a la API."""
+    report = context["ti"].xcom_pull(task_ids="compare_with_production", key="comparison_report")
+    candidate_version = report["candidate_version"]
+
+    mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:8003"))
+    client = MlflowClient()
+    client.set_registered_model_alias("real-estate-model", "prod", str(candidate_version))
+    logger.info("Alias 'prod' actualizado a versión %s", candidate_version)
+
+    api_url = os.getenv("PREDICT_API_URL", "http://api:8000")
+    try:
+        resp = requests.post(f"{api_url}/model", timeout=30)
+        logger.info("API recargada: HTTP %s", resp.status_code)
+    except Exception as e:
+        logger.warning("No se pudo notificar a la API: %s", e)
+
+    context["ti"].xcom_push(key="promotion_result", value={
+        "version": candidate_version,
+        "status": "promoted",
+    })
+
+
+# ---------------------------------------------------------------------------
+# Task 15: Rechazar modelo
+# ---------------------------------------------------------------------------
+
+def reject_model(**context):
+    """Registra la razón del rechazo."""
+    report = context["ti"].xcom_pull(task_ids="compare_with_production", key="comparison_report")
+    reason = report.get("reason", "No cumple criterios de promoción")
+    logger.warning("Modelo rechazado: %s", reason)
+    context["ti"].xcom_push(key="rejection_reason", value=reason)
+
+
+# ---------------------------------------------------------------------------
+# Task 16: Notificar / registrar historial (RF9)
+# ---------------------------------------------------------------------------
+
+def notify_or_log_result(**context):
+    """Inserta un registro en training_history con el resultado del pipeline."""
+    batch_number = context["ti"].xcom_pull(task_ids="fetch_batch_from_api", key="group_number")
+    execution_date = datetime.utcnow()
+
+    skip_reason = context["ti"].xcom_pull(task_ids="skip_training", key="skip_reason")
+    promotion = context["ti"].xcom_pull(task_ids="promote_model", key="promotion_result")
+
+    if skip_reason:
+        decision = "skip"
+        reason = skip_reason
+        model_version = None
+        mae = rmse = r2 = None
+        prod_version = prod_mae = mae_imp = rmse_reg = None
+        run_id_val = None
+    elif promotion:
+        decision = "promoted"
+        report = context["ti"].xcom_pull(task_ids="compare_with_production", key="comparison_report")
+        eval_rep = context["ti"].xcom_pull(task_ids="evaluate_model", key="evaluation_report")
+        reason = report["reason"]
+        model_version = report["candidate_version"]
+        mae = report["candidate_mae"]
+        rmse = report["candidate_rmse"]
+        r2 = eval_rep["r2"]
+        prod_version = report["production_version"]
+        prod_mae = report["production_mae"]
+        mae_imp = report["mae_improvement_pct"]
+        rmse_reg = report["rmse_regression_pct"]
+        run_id_val = report["candidate_run_id"]
+    else:
+        decision = "rejected"
+        report = context["ti"].xcom_pull(task_ids="compare_with_production", key="comparison_report")
+        eval_rep = context["ti"].xcom_pull(task_ids="evaluate_model", key="evaluation_report",)
+        reason = report.get("reason", "Rechazado")
+        model_version = report["candidate_version"]
+        mae = report["candidate_mae"]
+        rmse = report["candidate_rmse"]
+        r2 = eval_rep["r2"]
+        prod_version = report["production_version"]
+        prod_mae = report["production_mae"]
+        mae_imp = report["mae_improvement_pct"]
+        rmse_reg = report["rmse_regression_pct"]
+        run_id_val = report["candidate_run_id"]
+
+    ddl = f"""
+    CREATE TABLE IF NOT EXISTS `{HISTORY_TABLE}` (
+      `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      `batch_number` INT,
+      `execution_date` DATETIME,
+      `decision` VARCHAR(20),
+      `model_version` INT,
+      `reason` TEXT,
+      `candidate_mae` FLOAT, `candidate_rmse` FLOAT, `candidate_r2` FLOAT,
+      `production_version` INT, `production_mae` FLOAT,
+      `mae_improvement_pct` FLOAT, `rmse_regression_pct` FLOAT,
+      `mlflow_run_id` VARCHAR(100),
+      `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (`id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """
+
+    with get_connection() as conn:
+        conn.execute(text(ddl))
+        conn.execute(
+            text(f"""
+            INSERT INTO `{HISTORY_TABLE}`
+            (`batch_number`, `execution_date`, `decision`, `model_version`, `reason`,
+             `candidate_mae`, `candidate_rmse`, `candidate_r2`,
+             `production_version`, `production_mae`,
+             `mae_improvement_pct`, `rmse_regression_pct`, `mlflow_run_id`)
+            VALUES (:bn, :ed, :dec, :mv, :rea,
+                    :cmae, :crmse, :cr2,
+                    :pv, :pmae,
+                    :maeimp, :rmseimp, :rid)
+            """),
+            {
+                "bn": batch_number, "ed": execution_date, "dec": decision,
+                "mv": model_version, "rea": reason,
+                "cmae": mae, "crmse": rmse, "cr2": r2,
+                "pv": prod_version, "pmae": prod_mae,
+                "maeimp": mae_imp, "rmseimp": rmse_reg, "rid": run_id_val,
+            },
+        )
+
+    logger.info("Historial registrado: batch=%s, decisión=%s", batch_number, decision)
+
+
+# ---------------------------------------------------------------------------
+# Task 17: Fin de la ejecución
+# ---------------------------------------------------------------------------
+
+def end(**context):
+    """Marca el fin exitoso del pipeline."""
+    logger.info("=" * 50)
+    logger.info("Pipeline completado exitosamente.")
+    logger.info("=" * 50)

@@ -3,6 +3,7 @@ from dto.model_prediction_request import ModelPredictionRequest, NORMALIZED_COLU
 from contextlib import asynccontextmanager
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 import mlflow
+from mlflow import MlflowClient
 import os
 import traceback
 from pathlib import Path
@@ -28,7 +29,7 @@ load_dotenv(dotenv_path=Path(__file__).with_name(".env"))
 
 MODEL_STAGE = os.getenv("MODEL_STAGE", "prod")
 MODELS_DIR = os.environ.get("MODELS_DIR","/app/models")
-MODEL_NAME = os.getenv("MODEL_NAME", "diabetes-model")
+MODEL_NAME = os.getenv("MODEL_NAME", "real-estate-model")
 MODEL_PATH = os.path.join(MODELS_DIR, f"model_{MODEL_NAME}.pkl")
 PREP_PATH = os.path.join(MODELS_DIR, f"preprocessor.pkl")
 PREP = None
@@ -300,12 +301,21 @@ def model_info():
         "model_name": MODEL_NAME,
         "model_stage": MODEL_STAGE,
         "model_path": MODEL_PATH,
-        "exists": os.path.exists(MODEL_PATH)
+        "exists": os.path.exists(MODEL_PATH),
     }
     if info["exists"]:
         mtime = os.path.getmtime(MODEL_PATH)
         info["last_sync"] = datetime.datetime.fromtimestamp(mtime).isoformat()
-    
+    try:
+        client = MlflowClient()
+        mv = client.get_model_version_by_alias(MODEL_NAME, MODEL_STAGE)
+        info["version"] = mv.version
+        info["run_id"] = mv.run_id
+        info["status"] = mv.status
+    except Exception:
+        info["version"] = None
+        info["run_id"] = None
+        info["status"] = "not_found"
     return info
 
 @app.get("/metrics")

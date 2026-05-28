@@ -14,6 +14,12 @@ from training_app.data_pipeline import (
     train_model,
     evaluate_model,
     register_model,
+    compare_with_production,
+    decide_promotion,
+    promote_model,
+    reject_model,
+    notify_or_log_result,
+    end,
 )
 
 
@@ -89,8 +95,45 @@ with DAG(
         python_callable=register_model,
     )
 
+    compare_task = PythonOperator(
+        task_id="compare_with_production",
+        python_callable=compare_with_production,
+    )
+
+    decide_promotion_task = BranchPythonOperator(
+        task_id="decide_promotion",
+        python_callable=decide_promotion,
+    )
+
+    promote_task = PythonOperator(
+        task_id="promote_model",
+        python_callable=promote_model,
+    )
+
+    reject_task = PythonOperator(
+        task_id="reject_model",
+        python_callable=reject_model,
+    )
+
+    notify_task = PythonOperator(
+        task_id="notify_or_log_result",
+        python_callable=notify_or_log_result,
+        trigger_rule="one_success",
+    )
+
+    end_task = PythonOperator(
+        task_id="end",
+        python_callable=end,
+    )
+
     start_task >> fetch_task >> validate_schema_task >> validate_data_quality_task
     validate_data_quality_task >> detect_new_categories_task >> detect_data_drift_task >> preprocess_data_task
     preprocess_data_task >> decide_training_task
     decide_training_task >> [train_model_task, skip_training_task]
     train_model_task >> evaluate_model_task >> register_model_task
+    register_model_task >> compare_task >> decide_promotion_task
+    decide_promotion_task >> [promote_task, reject_task]
+    skip_training_task >> notify_task
+    promote_task >> notify_task
+    reject_task >> notify_task
+    notify_task >> end_task
