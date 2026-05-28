@@ -7,10 +7,21 @@ Cada función pública es un PythonOperator que recibe **context de Airflow.
 import os
 import math
 import logging
+from datetime import datetime
 
+import joblib
 import numpy as np
 import pandas as pd
 import requests
+import mlflow
+from mlflow.models import infer_signature
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.pipeline import Pipeline
+from airflow.exceptions import AirflowSkipException
 from sqlalchemy import text
 
 from training_app.db import (
@@ -18,6 +29,7 @@ from training_app.db import (
     create_table_with_types,
     get_connection,
     get_dataframe,
+    get_dataframe_where,
     insert_data,
 )
 
@@ -29,6 +41,8 @@ logger = logging.getLogger("airflow.task")
 
 DATA_API_URL = os.getenv("DATA_API_URL", "http://data-api:80")
 RAW_TABLE_NAME = "raw_data"
+BATCH_LOG_TABLE = "batch_log"
+DEBUG_LIMIT = int(os.getenv("DEBUG_LIMIT", "1000"))
 
 COLUMNS = [
     "brokered_by", "status", "price", "bed", "bath",
@@ -49,6 +63,8 @@ TYPE_MAP = {
     "zip_code":       "FLOAT",
     "house_size":     "FLOAT",
     "prev_sold_date": "VARCHAR(20)",
+    "batch_group":    "INT UNSIGNED",
+    "ingested_at":    "DATETIME",
 }
 
 DEFAULT_TYPES = {
@@ -63,6 +79,25 @@ NUMERICAL_COLUMNS = ["brokered_by", "price", "bed", "bath", "acre_lot", "street"
 
 CATEGORIES_TABLE = "known_categories"
 PSI_THRESHOLD = 0.1
+CLEAN_TABLE_NAME = "clean_data"
+
+CLEAN_TYPE_MAP = {
+    "brokered_by":    "FLOAT",
+    "status":         "VARCHAR(50)",
+    "price":          "FLOAT",
+    "bed":            "FLOAT",
+    "bath":           "FLOAT",
+    "acre_lot":       "FLOAT",
+    "street":         "FLOAT",
+    "city":           "VARCHAR(100)",
+    "state":          "VARCHAR(100)",
+    "zip_code":       "FLOAT",
+    "house_size":     "FLOAT",
+    "prev_sold_date": "VARCHAR(20)",
+    "price_per_sqft": "FLOAT",
+    "room_total":     "FLOAT",
+    "has_prev_sold":  "TINYINT(1) UNSIGNED",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -70,11 +105,39 @@ PSI_THRESHOLD = 0.1
 # ---------------------------------------------------------------------------
 
 def _pull_batch(context):
-    """Obtiene el batch desde XCom y lo normaliza a lista de dicts."""
-    batch = context["ti"].xcom_pull(key="raw_batch", task_ids="fetch_batch_from_api")
-    if batch is None:
-        raise RuntimeError("No hay batch en XCom.")
-    return batch if isinstance(batch, list) else [batch]
+    """Lee el batch desde raw_data filtrado por group_number."""
+    group = context["ti"].xcom_pull(key="group_number", task_ids="fetch_batch_from_api")
+    if group is None:
+        raise RuntimeError("No se encontró group_number en XCom.")
+    df = get_dataframe_where(RAW_TABLE_NAME, "batch_group", group)
+    if df.empty:
+        raise RuntimeError(f"No hay datos en raw_data para batch_group={group}.")
+    return df
+
+
+def _registrar_batch_log(run_id: str, group: int, batch_size: int, inserted: int):
+    """Registra metadatos del batch en la tabla batch_log."""
+    ddl = f"""
+    CREATE TABLE IF NOT EXISTS `{BATCH_LOG_TABLE}` (
+      `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      `run_id` VARCHAR(255) NOT NULL,
+      `group_number` INT UNSIGNED NOT NULL,
+      `batch_size` INT UNSIGNED NOT NULL,
+      `inserted_rows` INT UNSIGNED NOT NULL,
+      `ingested_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (`id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """
+    with get_connection() as conn:
+        conn.execute(text(ddl))
+        conn.execute(
+            text(
+                f"INSERT INTO `{BATCH_LOG_TABLE}` "
+                f"(`run_id`, `group_number`, `batch_size`, `inserted_rows`) "
+                f"VALUES (:r, :g, :b, :i)"
+            ),
+            {"r": run_id, "g": group, "b": batch_size, "i": inserted},
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -82,50 +145,55 @@ def _pull_batch(context):
 # ---------------------------------------------------------------------------
 
 def fetch_batch(**context):
-    """Obtiene un lote de registros desde la API externa."""
+    """Obtiene un lote de la API y lo escribe directamente en raw_data + batch_log."""
     group = (context.get("dag_run").conf or {}).get("group_number", 1)
+    run_id = context["dag_run"].run_id
 
     logger.info("Obteniendo batch group_number=%s", group)
-    resp = requests.get(f"{DATA_API_URL}/data", params={"group_number": group}, timeout=30)
-
+    resp = requests.get(f"{DATA_API_URL}/data", params={"group_number": group}, timeout=120)
+    if resp.status_code == 400:
+        logger.info("API: %s", resp.json().get("detail", "sin datos"))
+        with get_connection() as conn:
+            conn.execute(text("DROP TABLE IF EXISTS raw_data"))
+            conn.execute(text("DROP TABLE IF EXISTS clean_data"))
+        logger.info("Tablas raw_data y clean_data reiniciadas.")
+        restart = requests.get(f"{DATA_API_URL}/restart_data_generation", params={"group_number": 1}, timeout=30)
+        logger.info("Reinicio de data-api: HTTP %s", restart.status_code)
+        raise AirflowSkipException("Datos completos — tablas y API reiniciadas para próximo ciclo.")
     if resp.status_code != 200:
         raise RuntimeError(f"data-api respondió HTTP {resp.status_code}: {resp.text}")
 
     data = resp.json()
     records = data if isinstance(data, list) else data.get("data", data)
+    if DEBUG_LIMIT > 0 and isinstance(records, list):
+        records = records[:DEBUG_LIMIT]
+    batch_size = len(records) if isinstance(records, list) else 1
+    logger.info("Batch recibido: %d registros (group=%s).", batch_size, group)
 
-    logger.info("Batch recibido: %d registros (group=%s).", len(records) if isinstance(records, list) else 1, group)
-
-    context["ti"].xcom_push(key="raw_batch", value=records)
-    context["ti"].xcom_push(key="group_number", value=group)
-
-
-# ---------------------------------------------------------------------------
-# Task 2: Almacenar batch en MySQL
-# ---------------------------------------------------------------------------
-
-def store_raw_batch(**context):
-    """Persiste el batch en la tabla raw_data con deduplicación por SHA-256."""
-    df = pd.DataFrame(_pull_batch(context))
-    logger.info("DataFrame shape: %s", df.shape)
-
+    df = pd.DataFrame(records)
     cols = [c for c in COLUMNS if c in df.columns]
     df = df[cols]
-    type_map = {k: v for k, v in TYPE_MAP.items() if k in cols}
+    df["batch_group"] = group
+    df["ingested_at"] = datetime.utcnow()
 
+    type_map = {k: v for k, v in TYPE_MAP.items() if k in df.columns}
     create_table_with_types(RAW_TABLE_NAME, df, type_map)
     insertadas = insert_data(RAW_TABLE_NAME, df)
-
     logger.info("Almacenadas %d filas nuevas en `%s`.", insertadas, RAW_TABLE_NAME)
+
+    _registrar_batch_log(run_id, group, batch_size, insertadas)
+
+    context["ti"].xcom_push(key="group_number", value=group)
+    context["ti"].xcom_push(key="batch_size", value=batch_size)
 
 
 # ---------------------------------------------------------------------------
-# Task 3: Validar esquema
+# Task 2: Validar esquema
 # ---------------------------------------------------------------------------
 
 def validate_schema(**context):
     """Valida columnas requeridas y tipos de datos del batch."""
-    df = pd.DataFrame(_pull_batch(context))
+    df = _pull_batch(context)
 
     if df.empty:
         raise RuntimeError("Batch vacío.")
@@ -134,7 +202,8 @@ def validate_schema(**context):
     if faltantes:
         raise RuntimeError(f"Columnas faltantes: {faltantes}")
 
-    unexpected = [c for c in df.columns if c not in COLUMNS]
+    _AUDIT = {"batch_group", "ingested_at"}
+    unexpected = [c for c in df.columns if c not in COLUMNS and c not in _AUDIT]
     tipos_invalidos = {}
 
     for col, tipo_esperado in DEFAULT_TYPES.items():
@@ -157,12 +226,12 @@ def validate_schema(**context):
 
 
 # ---------------------------------------------------------------------------
-# Task 4: Validar calidad de datos
+# Task 3: Validar calidad de datos
 # ---------------------------------------------------------------------------
 
 def validate_data_quality(**context):
     """Valida nulos, duplicados, rangos, consistencia y valores categóricos."""
-    df = pd.DataFrame(_pull_batch(context))
+    df = _pull_batch(context)
     logger.info("Validando calidad, shape=%s", df.shape)
 
     # Nulos en columnas críticas
@@ -217,12 +286,12 @@ def validate_data_quality(**context):
 
 
 # ---------------------------------------------------------------------------
-# Task 5: Detectar categorías nuevas
+# Task 4: Detectar categorías nuevas
 # ---------------------------------------------------------------------------
 
 def detect_new_categories(**context):
     """Identifica y registra categorías no vistas antes en columnas categóricas."""
-    df = pd.DataFrame(_pull_batch(context))
+    df = _pull_batch(context)
     _crear_tabla_categorias()
 
     nuevas = {}
@@ -285,12 +354,12 @@ def _insertar_categorias(col: str, valores: set):
 
 
 # ---------------------------------------------------------------------------
-# Task 6: Detectar data drift (PSI)
+# Task 5: Detectar data drift (PSI)
 # ---------------------------------------------------------------------------
 
 def detect_data_drift(**context):
     """Compara distribución del batch vs histórico usando Population Stability Index."""
-    df_batch = pd.DataFrame(_pull_batch(context))
+    df_batch = _pull_batch(context)
     df_ref = get_dataframe(RAW_TABLE_NAME)
 
     if df_ref.empty:
@@ -385,3 +454,301 @@ def _psi_categorico(ref: pd.Series, act: pd.Series) -> float:
         psi += (p_ref - p_act) * math.log(p_ref / p_act)
 
     return psi
+
+
+# ---------------------------------------------------------------------------
+# Task 6: Preprocesar batch y actualizar clean_data
+# ---------------------------------------------------------------------------
+
+def preprocess_data(**context):
+    """Limpia, transforma y persiste el batch en la tabla clean_data."""
+    df = _pull_batch(context)
+    logger.info("Preprocesando %d registros.", len(df))
+
+    # Copia para no mutar el original
+    clean = df[COLUMNS].copy()
+
+    # Imputación de nulos
+    clean["brokered_by"].fillna(0, inplace=True)
+    clean["price"].fillna(clean["price"].median(), inplace=True)
+    clean["bed"].fillna(clean["bed"].median(), inplace=True)
+    clean["bath"].fillna(clean["bath"].median(), inplace=True)
+    clean["acre_lot"].fillna(clean["acre_lot"].median(), inplace=True)
+    clean["street"].fillna(0, inplace=True)
+    clean["house_size"].fillna(clean["house_size"].median(), inplace=True)
+    clean["zip_code"].fillna(0, inplace=True)
+    clean["status"].fillna("unknown", inplace=True)
+    clean["city"].fillna("unknown", inplace=True)
+    clean["state"].fillna("unknown", inplace=True)
+    clean["prev_sold_date"].fillna("", inplace=True)
+
+    # Feature engineering
+    mask = clean["house_size"] > 0
+    clean["price_per_sqft"] = 0.0
+    clean.loc[mask, "price_per_sqft"] = clean.loc[mask, "price"] / clean.loc[mask, "house_size"]
+
+    clean["room_total"] = clean["bed"] + clean["bath"]
+    clean["has_prev_sold"] = (clean["prev_sold_date"] != "").astype(int)
+
+    # Crear tabla e insertar
+    type_map = CLEAN_TYPE_MAP
+    create_table_with_types(CLEAN_TABLE_NAME, clean, type_map)
+    insertadas = insert_data(CLEAN_TABLE_NAME, clean)
+
+    report = {
+        "status": "success",
+        "records_input": len(df),
+        "records_inserted": insertadas,
+        "columns": list(clean.columns),
+        "derived_features": ["price_per_sqft", "room_total", "has_prev_sold"],
+    }
+
+    logger.info("Preprocesamiento completo: %s", report)
+    context["ti"].xcom_push(key="preprocess_report", value=report)
+
+
+# ---------------------------------------------------------------------------
+# Task 7: Decidir si entrenar (BranchPythonOperator)
+# ---------------------------------------------------------------------------
+
+VOLUMEN_MINIMO = 100
+
+
+def decide_training(**context):
+    """Evalúa reglas técnicas y retorna la siguiente tarea: train_model o skip_training."""
+    reports = {
+        "quality":  context["ti"].xcom_pull(task_ids="validate_data_quality",    key="data_quality_report"),
+        "cats":     context["ti"].xcom_pull(task_ids="detect_new_categories",     key="new_categories_report"),
+        "drift":    context["ti"].xcom_pull(task_ids="detect_data_drift",         key="data_drift_report"),
+        "prep":     context["ti"].xcom_pull(task_ids="preprocess_data",           key="preprocess_report"),
+    }
+
+    batch_size = (reports["prep"] or {}).get("records_input", 0)
+
+    # Regla 1 — volumen mínimo
+    if batch_size < VOLUMEN_MINIMO:
+        reason = f"Volumen insuficiente: {batch_size} registros (mínimo {VOLUMEN_MINIMO})"
+        logger.warning(reason)
+        context["ti"].xcom_push(key="training_decision", value={"train": False, "reason": reason})
+        return "skip_training"
+
+    # Regla 2 — drift distribucional
+    if reports["drift"] and reports["drift"].get("drift_detected"):
+        cols = list(reports["drift"].get("drift_details", {}).keys())
+        reason = f"Data drift detectado en: {cols}"
+        logger.info(reason)
+        context["ti"].xcom_push(key="training_decision", value={"train": True, "reason": reason})
+        return "train_model"
+
+    # Regla 3 — categorías nuevas
+    if reports["cats"] and reports["cats"].get("new_categories"):
+        cats = reports["cats"]["new_categories"]
+        reason = f"Nuevas categorías detectadas: {cats}"
+        logger.info(reason)
+        context["ti"].xcom_push(key="training_decision", value={"train": True, "reason": reason})
+        return "train_model"
+
+    # Regla 4 — calidad deficiente (no entrenar si hay problemas graves)
+    quality = reports["quality"] or {}
+    nulls = quality.get("critical_nulls", {})
+    rangos = quality.get("invalid_ranges", {})
+    if nulls or rangos:
+        reason = f"Problemas de calidad — nulos: {nulls}, rangos: {rangos}"
+        logger.warning(reason)
+        context["ti"].xcom_push(key="training_decision", value={"train": False, "reason": reason})
+        return "skip_training"
+
+    # Por defecto — sin cambios significativos
+    reason = "Sin cambios significativos que justifiquen entrenamiento"
+    logger.info(reason)
+    context["ti"].xcom_push(key="training_decision", value={"train": False, "reason": reason})
+    return "skip_training"
+
+
+# ---------------------------------------------------------------------------
+# Task 8: Omitir entrenamiento
+# ---------------------------------------------------------------------------
+
+def skip_training(**context):
+    """Registra la razón por la cual se omitió el entrenamiento."""
+    decision = context["ti"].xcom_pull(task_ids="decide_training", key="training_decision") or {}
+    reason = decision.get("reason", "No especificada")
+    logger.info("Entrenamiento omitido — razón: %s", reason)
+    context["ti"].xcom_push(key="skip_reason", value=reason)
+
+
+# ---------------------------------------------------------------------------
+# Task 9: Entrenar modelo candidato (RF5)
+# ---------------------------------------------------------------------------
+
+def train_model(**context):
+    """Entrena el pipeline (preprocesador + RandomForest) y lo guarda a disco."""
+    group = context["ti"].xcom_pull(task_ids="fetch_batch_from_api", key="group_number")
+    run_id = context["dag_run"].run_id
+    model_path = os.path.join("/tmp", f"pipeline_{run_id}_{group}.pkl")
+
+    df = get_dataframe(CLEAN_TABLE_NAME)
+    if df.empty:
+        raise RuntimeError("No hay datos en clean_data para entrenar.")
+
+    X = df.drop(columns=["price"])
+    y = df["price"]
+    cat_cols = [c for c in CATEGORICAL_COLUMNS if c in X.columns]
+    num_cols = [c for c in X.columns if c not in cat_cols]
+
+    preprocessor = ColumnTransformer([
+        ("num", StandardScaler(), num_cols),
+        ("cat", OneHotEncoder(handle_unknown="ignore", sparse_output=False), cat_cols),
+    ])
+    X_train, _, y_train, _ = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    rf = RandomForestRegressor(random_state=42, n_jobs=-1)
+    gs = GridSearchCV(
+        rf,
+        {"n_estimators": [50, 100], "max_depth": [10, 20, None], "min_samples_split": [2, 5]},
+        cv=3, scoring="neg_mean_absolute_error", n_jobs=-1,
+    )
+    pipeline = Pipeline([("prep", preprocessor), ("model", gs)])
+    pipeline.fit(X_train, y_train)
+
+    joblib.dump(pipeline, model_path)
+    logger.info("Pipeline guardado en %s", model_path)
+
+    context["ti"].xcom_push(key="model_path", value=model_path)
+    context["ti"].xcom_push(key="data_size", value=len(df))
+
+
+# ---------------------------------------------------------------------------
+# Task 10: Evaluar modelo candidato (RF5)
+# ---------------------------------------------------------------------------
+
+def evaluate_model(**context):
+    """Evalua el pipeline, calcula métricas y genera artefactos (gráficos, reporte)."""
+    model_path = context["ti"].xcom_pull(task_ids="train_model", key="model_path")
+    run_id = context["dag_run"].run_id
+    group = context["ti"].xcom_pull(task_ids="fetch_batch_from_api", key="group_number")
+    artifacts_dir = os.path.join("/tmp", f"artifacts_{run_id}_{group}")
+    os.makedirs(artifacts_dir, exist_ok=True)
+
+    pipeline = joblib.load(model_path)
+
+    df = get_dataframe(CLEAN_TABLE_NAME)
+    X = df.drop(columns=["price"])
+    y = df["price"]
+    cat_cols = [c for c in CATEGORICAL_COLUMNS if c in X.columns]
+    num_cols = [c for c in X.columns if c not in cat_cols]
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    y_pred = pipeline.predict(X_test)
+    y_train_pred = pipeline.predict(X_train)
+
+    mae = mean_absolute_error(y_test, y_pred)
+    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+    r2 = r2_score(y_test, y_pred)
+    train_mae = mean_absolute_error(y_train, y_train_pred)
+    train_r2 = r2_score(y_train, y_train_pred)
+
+    # Reporte de métricas
+    with open(os.path.join(artifacts_dir, "metrics.txt"), "w") as f:
+        f.write(f"MAE: {mae:.4f}\nRMSE: {rmse:.4f}\nR²: {r2:.4f}\n")
+        f.write(f"Train MAE: {train_mae:.4f}\nTrain R²: {train_r2:.4f}\n")
+
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    # Feature importance
+    best = pipeline.named_steps["model"].best_estimator_
+    if hasattr(best, "feature_importances_"):
+        try:
+            preprocessor = pipeline.named_steps["prep"]
+            cat_names = preprocessor.named_transformers_["cat"].get_feature_names_out(cat_cols)
+            feat_names = list(num_cols) + list(cat_names)
+        except Exception:
+            feat_names = [f"f{i}" for i in range(len(best.feature_importances_))]
+        imp = best.feature_importances_
+        idx = np.argsort(imp)[-15:]
+        plt.figure(figsize=(8, 5))
+        plt.title("Feature Importances")
+        plt.barh(range(len(idx)), imp[idx])
+        plt.yticks(range(len(idx)), [feat_names[i] for i in idx])
+        plt.tight_layout()
+        plt.savefig(os.path.join(artifacts_dir, "feature_importance.png"))
+        plt.close()
+
+    # Residual plot
+    residuals = y_test - y_pred
+    plt.figure(figsize=(8, 5))
+    plt.scatter(y_pred, residuals, alpha=0.3)
+    plt.axhline(y=0, color="r", linestyle="--")
+    plt.xlabel("Predicho")
+    plt.ylabel("Residual")
+    plt.title("Residual Plot")
+    plt.savefig(os.path.join(artifacts_dir, "residuals.png"))
+    plt.close()
+
+    logger.info("Evaluación: MAE=%.2f, RMSE=%.2f, R²=%.4f", mae, rmse, r2)
+
+    context["ti"].xcom_push(key="evaluation_report", value={
+        "mae": mae, "rmse": rmse, "r2": r2,
+        "train_mae": train_mae, "train_r2": train_r2,
+        "artifacts_dir": artifacts_dir,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Task 11: Registrar modelo candidato en MLflow (RF5)
+# ---------------------------------------------------------------------------
+
+def register_model(**context):
+    """Registra el pipeline, métricas y artefactos en MLflow."""
+    model_path = context["ti"].xcom_pull(task_ids="train_model", key="model_path")
+    eval_report = context["ti"].xcom_pull(task_ids="evaluate_model", key="evaluation_report")
+    decision = context["ti"].xcom_pull(task_ids="decide_training", key="training_decision") or {}
+
+    pipeline = joblib.load(model_path)
+
+    mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:8003"))
+    mlflow.set_experiment("price_experiment")
+
+    df = get_dataframe(CLEAN_TABLE_NAME)
+    X = df.drop(columns=["price"])
+    y = df["price"]
+    X_train, _ = train_test_split(X, test_size=0.2, random_state=42)
+
+    with mlflow.start_run() as run:
+        mlflow.set_tag("reason", decision.get("reason", ""))
+        mlflow.set_tag("model_type", "RandomForestRegressor")
+
+        best = pipeline.named_steps["model"].best_estimator_
+        mlflow.log_params(best.get_params())
+
+        mlflow.log_metric("test_mae", eval_report["mae"])
+        mlflow.log_metric("test_rmse", eval_report["rmse"])
+        mlflow.log_metric("test_r2", eval_report["r2"])
+        mlflow.log_metric("train_mae", eval_report["train_mae"])
+        mlflow.log_metric("train_r2", eval_report["train_r2"])
+
+        # Artefactos
+        artifacts_dir = eval_report.get("artifacts_dir")
+        if artifacts_dir and os.path.exists(artifacts_dir):
+            for fname in os.listdir(artifacts_dir):
+                mlflow.log_artifact(os.path.join(artifacts_dir, fname))
+
+        signature = infer_signature(X_train, pipeline.predict(X_train))
+        result = mlflow.sklearn.log_model(
+            sk_model=pipeline,
+            artifact_path="model",
+            registered_model_name="diabetes-model",
+            signature=signature,
+            input_example=X_train.iloc[:5],
+        )
+
+        logger.info("Registrado: versión %s | MAE=%.2f | RMSE=%.2f | R²=%.4f",
+                     result.registered_model_version,
+                     eval_report["mae"], eval_report["rmse"], eval_report["r2"])
+
+    context["ti"].xcom_push(key="register_report", value={
+        "version": result.registered_model_version,
+        "run_id": run.info.run_id,
+    })

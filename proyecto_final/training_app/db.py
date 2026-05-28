@@ -256,6 +256,20 @@ def get_dataframe(table_name: str) -> pd.DataFrame:
     return df
 
 
+def get_dataframe_where(table_name: str, column: str, value) -> pd.DataFrame:
+    """Lee filas de la tabla filtradas por columna = valor."""
+    with get_connection() as conn:
+        result = conn.execute(
+            text(f"SELECT * FROM `{table_name}` WHERE `{column}` = :val"),
+            {"val": value},
+        )
+        df = pd.DataFrame(result.fetchall(), columns=list(result.keys()))
+    for drop_col in ("id", "row_hash"):
+        if drop_col in df.columns:
+            df.drop(columns=drop_col, inplace=True)
+    return df
+
+
 def delete_table(table_name: str):
     """Elimina la tabla si existe."""
     with get_connection() as conn:
