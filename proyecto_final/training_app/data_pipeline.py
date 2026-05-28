@@ -44,7 +44,7 @@ DATA_API_URL = os.getenv("DATA_API_URL", "http://data-api:80")
 RAW_TABLE_NAME = "raw_data"
 BATCH_LOG_TABLE = "batch_log"
 HISTORY_TABLE = "training_history"
-DEBUG_LIMIT = int(os.getenv("DEBUG_LIMIT", "1000"))
+DEBUG_LIMIT = int(os.getenv("DEBUG_LIMIT", "2000"))
 
 COLUMNS = [
     "brokered_by", "status", "price", "bed", "bath",

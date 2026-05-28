@@ -1,29 +1,23 @@
-from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Response, BackgroundTasks
-from dto.model_prediction_request import ModelPredictionRequest, NORMALIZED_COLUMNS
+from fastapi import FastAPI, HTTPException, Response, BackgroundTasks
+from dto.model_prediction_request import ModelPredictionRequest
 from contextlib import asynccontextmanager
-from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import Counter, Histogram, Info, generate_latest, CONTENT_TYPE_LATEST
 import mlflow
 from mlflow import MlflowClient
 import os
 import traceback
 from pathlib import Path
 from dotenv import load_dotenv
-import cloudpickle
 import shutil
 import pandas as pd
 import joblib
 import numpy as np
 import datetime
 import json
-import time
-import random
+import time as time_module
 import uuid
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from prometheus_client import Counter, Histogram, Info, generate_latest, CONTENT_TYPE_LATEST
-# comentario
-# comentario 2
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 load_dotenv(dotenv_path=Path(__file__).with_name(".env"))
 
@@ -31,11 +25,7 @@ MODEL_STAGE = os.getenv("MODEL_STAGE", "prod")
 MODELS_DIR = os.environ.get("MODELS_DIR","/app/models")
 MODEL_NAME = os.getenv("MODEL_NAME", "real-estate-model")
 MODEL_PATH = os.path.join(MODELS_DIR, f"model_{MODEL_NAME}.pkl")
-PREP_PATH = os.path.join(MODELS_DIR, f"preprocessor.pkl")
-PREP = None
-GROUPS = None  # optional if you want to backfill missing columns
 MODEL = None
-
 
 # --- DB Configuration for Inference Logs ---
 DB_USER = os.getenv("DB_USER", "user")
@@ -45,12 +35,7 @@ DB_PORT = os.getenv("DB_PORT", "3306")
 DB_NAME = os.getenv("DB_NAME", "training")
 
 DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-engine = create_engine(
-    DATABASE_URL,
-    pool_size=100,
-    max_overflow=50,
-    pool_recycle=3600
-)
+engine = create_engine(DATABASE_URL, pool_size=100, max_overflow=50, pool_recycle=3600)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -59,33 +44,18 @@ class InferenceLog(Base):
     id = Column(Integer, primary_key=True, index=True)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
     input_data = Column(Text)
-    prediction = Column(Integer)
-    probability = Column(Float, nullable=True)
+    prediction = Column(Float)
     model_name = Column(String(100))
     model_version = Column(String(50))
     latency_ms = Column(Float)
     request_id = Column(String(100))
 
-# Create table if it doesn't exist
 Base.metadata.create_all(bind=engine)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global PREP, GROUPS, MODEL
+    global MODEL
     print("Loading resources at startup...")
-    
-    # Load preprocessor
-    if os.path.exists(PREP_PATH):
-        try:
-            with open(PREP_PATH, "rb") as f:
-                payload = cloudpickle.load(f)
-            PREP = payload.get("prep")
-            GROUPS = payload.get("groups")
-            print("Preprocessor loaded successfully from local file.")
-        except Exception as e:
-            print(f"Error loading preprocessor from file at startup: {e}")
-            
-    # Load model
     if os.path.exists(MODEL_PATH):
         try:
             MODEL = joblib.load(MODEL_PATH)
@@ -97,59 +67,50 @@ async def lifespan(app: FastAPI):
         print("Local model file not found at startup. Will try to fetch from MLflow...")
         try:
             model_uri = f"models:/{MODEL_NAME}@{MODEL_STAGE}"
-            MODEL = mlflow.pyfunc.load_model(model_uri)
+            MODEL = mlflow.sklearn.load_model(model_uri)
             print("Model loaded successfully from MLflow.")
             MODEL_INFO.info({'model_name': MODEL_NAME, 'stage': MODEL_STAGE, 'sync_time': 'mlflow_startup'})
         except Exception as e:
             print(f"Could not load model from MLflow at startup: {e}")
-            
-    yield  # <-- this yields control to the app runtime
+    yield
     print("Cleaning up resources at shutdown...")
 
-app = FastAPI(title="Diabetes API", version="1.0", lifespan=lifespan)
+app = FastAPI(title="Real Estate API", version="1.0", lifespan=lifespan)
 
-
-@app.get("/models")
-def get_models():
-    return {"available_models": ["random_forest"]}
-         
-
-
-def normalize_request(req: ModelPredictionRequest):
-    global PREP, GROUPS
-
-    if PREP is None:
-        if os.path.exists(PREP_PATH):
-            print("Loading preprocessor on demand...")
-            with open(PREP_PATH, "rb") as f:
-                payload = cloudpickle.load(f)
-            PREP = payload["prep"]
-            GROUPS = payload.get("groups")
-        else:
-            raise HTTPException(500, "Preprocessor not loaded")
-            
-    data_dict = req.model_dump()
-    df = pd.DataFrame([data_dict])
-    X_new = PREP.transform(df)
-    feature_names = PREP.get_feature_names_out()
-    X_new = pd.DataFrame(X_new, columns=feature_names)
-    X_new = X_new[NORMALIZED_COLUMNS]
-    print("X_new in normalize_request", X_new)
-    # Convert to plain Python so FastAPI can serialize it
-    return X_new
-
-REQUEST_COUNT = Counter('predict_requests_total', 'Total de peticiones de predicción', ['status'])
-REQUEST_LATENCY = Histogram('predict_latency_seconds', 'Tiempo de latencia de predicción')
-PREDICTION_DIST = Counter('prediction_output_total', 'Distribución de resultados de predicción', ['output'])
+REQUEST_COUNT = Counter('predict_requests_total', 'Total de peticiones de prediccion', ['status'])
+REQUEST_LATENCY = Histogram('predict_latency_seconds', 'Tiempo de latencia de prediccion')
+PREDICTION_DIST = Counter('prediction_output_total', 'Distribucion de resultados de prediccion', ['output'])
 MODEL_INFO = Info('model_metadata', 'Metadatos del modelo cargado')
 
-def save_log_to_db(req_data, prediction_val, prob_val, latency_val, request_id_val):
+INPUT_COLUMNS = [
+    "brokered_by", "status", "bed", "bath", "acre_lot",
+    "street", "city", "state", "zip_code", "house_size", "prev_sold_date",
+]
+
+def _engineer_features(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    df["brokered_by"] = df["brokered_by"].fillna(0)
+    df["bed"] = df["bed"].fillna(df["bed"].median())
+    df["bath"] = df["bath"].fillna(df["bath"].median())
+    df["acre_lot"] = df["acre_lot"].fillna(df["acre_lot"].median())
+    df["street"] = df["street"].fillna(0)
+    df["zip_code"] = df["zip_code"].fillna(0)
+    df["house_size"] = df["house_size"].fillna(df["house_size"].median())
+    df["status"] = df["status"].fillna("unknown")
+    df["city"] = df["city"].fillna("unknown")
+    df["state"] = df["state"].fillna("unknown")
+    df["prev_sold_date"] = df["prev_sold_date"].fillna("")
+    df["price_per_sqft"] = 0.0
+    df["room_total"] = df["bed"] + df["bath"]
+    df["has_prev_sold"] = (df["prev_sold_date"] != "").astype(int)
+    return df
+
+def save_log_to_db(req_data, prediction_val, latency_val, request_id_val):
     db = SessionLocal()
     try:
         log_entry = InferenceLog(
             input_data=json.dumps(req_data),
-            prediction=int(prediction_val),
-            probability=prob_val,
+            prediction=float(prediction_val),
             model_name=MODEL_NAME,
             model_version=MODEL_STAGE,
             latency_ms=latency_val,
@@ -162,87 +123,69 @@ def save_log_to_db(req_data, prediction_val, prob_val, latency_val, request_id_v
     finally:
         db.close()
 
+@app.get("/models")
+def get_models():
+    return {"available_models": ["random_forest"]}
+
 @app.post("/predict")
 def predict_model(
     req: ModelPredictionRequest,
     background_tasks: BackgroundTasks,
-    X_new_df: pd.DataFrame = Depends(normalize_request)
 ):
     global MODEL
-    start_time = time.time()
+    start_time = time_module.time()
     try:
         with REQUEST_LATENCY.time():
-            # Keep a small simulated delay for realistic metrics, but low to support high concurrency
-            time.sleep(random.uniform(0.01, 0.05))
-            
-        if MODEL is None:
-            if os.path.exists(MODEL_PATH):
-                print("Loading model on demand from local file...")
-                MODEL = joblib.load(MODEL_PATH)
-            else:
-                print("Local model file not found, loading from MLflow...")
-                model_uri = f"models:/{MODEL_NAME}@{MODEL_STAGE}"
-                MODEL = mlflow.pyfunc.load_model(model_uri)
+            if MODEL is None:
+                if os.path.exists(MODEL_PATH):
+                    print("Loading model on demand from local file...")
+                    MODEL = joblib.load(MODEL_PATH)
+                else:
+                    print("Local model file not found, loading from MLflow...")
+                    model_uri = f"models:/{MODEL_NAME}@{MODEL_STAGE}"
+                    MODEL = mlflow.sklearn.load_model(model_uri)
 
-        if MODEL is None:
-            raise HTTPException(status_code=404, detail=f"Model {MODEL_NAME} not loaded.")
+            if MODEL is None:
+                raise HTTPException(status_code=404, detail=f"Model {MODEL_NAME} not loaded.")
 
-        print(f"Predicting with cached model")
-        prediction = MODEL.predict(X_new_df)
-            
-        # Get probability if available
-        prob = None
-        if hasattr(MODEL, "predict_proba"):
-            prob = float(np.max(MODEL.predict_proba(X_new_df)))
-        elif hasattr(MODEL, "_model_impl") and hasattr(MODEL._model_impl, "predict_proba"):
-            try:
-                prob = float(np.max(MODEL._model_impl.predict_proba(X_new_df)))
-            except Exception:
-                pass
+            data_dict = req.model_dump()
+            df = pd.DataFrame([data_dict])
+            df = _engineer_features(df)
 
-        latency = (time.time() - start_time) * 1000
-        
-        # --- Save Inference Log Asynchronously ---
+            prediction = MODEL.predict(df)
+
+        latency = (time_module.time() - start_time) * 1000
+
         REQUEST_COUNT.labels(status='success').inc()
-        PREDICTION_DIST.labels(output=str(prediction[0])).inc()
-        
+        PREDICTION_DIST.labels(output=str(round(float(prediction[0]), 2))).inc()
+
         request_id = str(uuid.uuid4())
         background_tasks.add_task(
             save_log_to_db,
             req.model_dump(),
-            prediction[0],
-            prob,
+            float(prediction[0]),
             latency,
             request_id
         )
 
-        print("prediction in predict_model", prediction)
         return {
-            "prediction": int(prediction[0]),
-            "probability": prob,
+            "prediction": float(prediction[0]),
             "model": MODEL_NAME,
             "version": MODEL_STAGE,
             "latency_ms": latency,
-            "features": X_new_df.to_numpy().tolist()
         }
-    except HTTPException as e:
-        raise HTTPException(status_code=e.status_code, detail=e.detail)
-    except ValueError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         REQUEST_COUNT.labels(status='error').inc()
         print("ERROR during prediction:")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-    
-@app.get("/model/{model_name}")
-def load_model(model_name: str):
-    return {"message": f"Model {model_name} loaded successfully"}
 
 @app.post("/model")
 async def save_model():
     global MODEL
-    mlflow_model_url=f"models:/{MODEL_NAME}@{MODEL_STAGE}"
+    mlflow_model_url = f"models:/{MODEL_NAME}@{MODEL_STAGE}"
     print("mlflow_model_url ", mlflow_model_url)
     model = mlflow.sklearn.load_model(mlflow_model_url)
 
@@ -251,46 +194,10 @@ async def save_model():
         shutil.move(MODEL_PATH, MODEL_PATH + ".bak")
     MODEL_INFO.info({'model_name': MODEL_NAME, 'stage': MODEL_STAGE, 'sync_time': str(datetime.datetime.now())})
     joblib.dump(model, MODEL_PATH)
-    MODEL = model  # Update active global cache in-memory
+    MODEL = model
     print("Model refreshed in global memory cache.")
     return {"message": f"Model {MODEL_NAME} saved and reloaded in memory successfully"}
 
-@app.post("/upload_preprocessor")
-async def upload_preprocessor(file: UploadFile = File(...)):
-    global PREP, GROUPS
-    # Ensure the model directory exists
-    os.makedirs(MODELS_DIR, exist_ok=True)
-
-    # Check if preprocessor.pkl exists
-    if os.path.exists(PREP_PATH):
-        backup_file = PREP_PATH + ".bak"
-        try:
-            shutil.move(PREP_PATH, backup_file)
-            print(f"Existing file moved to {backup_file}")
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error creating backup: {str(e)}")
-
-    # Save the uploaded file as preprocessor.pkl
-    try:
-        with open(PREP_PATH, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error saving new file: {str(e)}")
-    finally:
-        file.file.close()
-
-    # Reload the preprocessor into global memory cache
-    try:
-        with open(PREP_PATH, "rb") as f:
-            payload = cloudpickle.load(f)
-        PREP = payload.get("prep")
-        GROUPS = payload.get("groups")
-        print("Preprocessor reloaded globally in memory cache.")
-    except Exception as e:
-        print(f"Error loading uploaded preprocessor into memory: {e}")
-
-    return {"message": "Preprocessor uploaded, saved, and reloaded globally."}
-    
 @app.get("/health")
 def health():
     return {"status": "ok", "timestamp": datetime.datetime.utcnow().isoformat()}
