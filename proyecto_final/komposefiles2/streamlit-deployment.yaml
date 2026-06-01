@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: /home/javier/Descargas/kompose convert -f docker-compose.yml -o komposefiles2/ --volumes hostPath
+    kompose.version: 1.26.0 (40646f47)
+  labels:
+    io.kompose.service: streamlit
+  name: streamlit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: streamlit
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: /home/javier/Descargas/kompose convert -f docker-compose.yml -o komposefiles2/ --volumes hostPath
+        kompose.version: 1.26.0 (40646f47)
+      labels:
+        io.kompose.service: streamlit
+    spec:
+      containers:
+        - env:
+            - name: API_URL
+              value: http://api:8000
+            - name: DB_HOST
+              value: mysql_db
+            - name: DB_NAME
+              value: training
+            - name: DB_PASSWORD
+              value: password
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_USER
+              value: user
+          image: javieresquivel123/proyecto-final-streamlit:latest
+          name: streamlit
+          ports:
+            - containerPort: 8501
+              protocol: TCP
+          resources:
+            limits:
+              memory: "268435456"
+      restartPolicy: Always

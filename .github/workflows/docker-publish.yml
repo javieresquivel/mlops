@@ -10,6 +10,7 @@ on:
       - 'proyecto_final/airflow/**'
       - 'proyecto_final/streamlit/**'
       - 'proyecto_final/locust/**'
+      - 'proyecto_final/grafana/**'
 
 jobs:
   build-and-push:
@@ -18,7 +19,7 @@ jobs:
     strategy:
       # matrix permite ejecutar el mismo job en paralelo para diferentes carpetas
       matrix:
-        service: [api, mlflow, airflow, streamlit, locust]
+        service: [api, mlflow, airflow, streamlit, locust, grafana]
 
     steps:
       - name: Checkout repository

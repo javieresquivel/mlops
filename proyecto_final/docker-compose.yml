@@ -391,7 +391,7 @@ services:
       - ./models:/app/models
     restart: unless-stopped
   streamlit:
-    build: ./streamlit
+    image: javieresquivel123/proyecto-final-streamlit:latest
     container_name: streamlit
     environment:
       API_URL: http://api:8000
@@ -410,6 +410,33 @@ services:
       resources:
         limits:
           memory: 256M
+  locust:
+    image: javieresquivel123/proyecto-final-locust:latest
+    container_name: locust
+    ports:
+      - "8089:8089"
+    environment:
+      - LOCUST_HOST=http://api:80
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    depends_on:
+      - api
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "8020:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+  grafana:
+    image: javieresquivel123/proyecto-final-grafana:latest
+    ports:
+      - "8021:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
 
 volumes:
   minio_data:
