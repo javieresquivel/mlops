@@ -23,7 +23,7 @@ spec:
       containers:
         - env:
             - name: LOCUST_HOST
-              value: http://api:80
+              value: http://api:8013
           image: javieresquivel123/proyecto-final-locust:latest
           name: locust
           ports:

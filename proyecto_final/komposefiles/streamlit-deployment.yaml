@@ -23,9 +23,9 @@ spec:
       containers:
         - env:
             - name: API_URL
-              value: http://api:8000
+              value: http://api:8013
             - name: DB_HOST
-              value: mysql_db
+              value: mysql-db
             - name: DB_NAME
               value: training
             - name: DB_PASSWORD

@@ -5,7 +5,7 @@ class UsuarioDeCarga(HttpUser):
 
     @task
     def hacer_inferencia(self):
-        data = {
+        payload = {
             'brokered_by': 101640.0, 
             'status': 'for_sale', 
             'price': 289900.0, 
