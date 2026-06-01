@@ -95,7 +95,7 @@ Para que funcione correctamente el CI / CD se debe adjuntar en los deployment co
 
 De lo contrario al contruir los contenedores toma la imagen del caché y no la última en docker hub que es lo que nos interesa
 
-
+Se debe tener en cuenta también que al cambiar a kubernetes el mapeo de los puertos funciona de forma distinta. Mientras que en docker si nos conectamos desde un contenedor a otro usamos el puerto base del servicio, por ejemplo a mysql nos conectamos al 3306 independientemente si en el archivo docker compose mapeamos ese ```4000:3006``` en kubernetes si se debe llamar al puerto que se mapeó en el servicio, por lo tanto al llamar a mysql desde otro contenedor tendríamos que conectarnos al puerto 4000.
 
 
 

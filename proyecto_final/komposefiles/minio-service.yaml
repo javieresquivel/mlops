@@ -9,8 +9,8 @@ metadata:
   name: minio
 spec:
   ports:
-    - name: "8000"
-      port: 8000
+    - name: "9000"
+      port: 9000
       targetPort: 9000
     - name: "8001"
       port: 8001
