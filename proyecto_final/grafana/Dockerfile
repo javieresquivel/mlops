@@ -2,7 +2,7 @@ FROM grafana/grafana:latest
 
 ENV GF_SECURITY_ADMIN_PASSWORD=admin
 
-COPY ./grafana/provisioning /etc/grafana/provisioning
-COPY ./grafana/dashboards /var/lib/grafana/dashboards
+COPY ./provisioning /etc/grafana/
+COPY ./dashboards /var/lib/grafana/
 
 EXPOSE 3000
