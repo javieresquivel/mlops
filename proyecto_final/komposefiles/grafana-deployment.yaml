@@ -25,6 +25,7 @@ spec:
             - name: GF_SECURITY_ADMIN_PASSWORD
               value: admin
           image: javieresquivel123/proyecto-final-grafana:latest
+          imagePullPolicy: Always
           name: grafana
           ports:
             - containerPort: 3000

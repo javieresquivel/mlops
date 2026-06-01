@@ -21,6 +21,6 @@ EXPOSE 8003
 CMD ["mlflow", "server", \
      "--host", "0.0.0.0", \
      "--port", "8003", \
-     "--backend-store-uri", "mysql+pymysql://user:password@mysql:3306/mlflow_db", \
+     "--backend-store-uri", "mysql+pymysql://user:password@mysql:8004/mlflow_db", \
      "--default-artifact-root", "s3://mlflows/artifacts", \
      "--serve-artifacts"]
