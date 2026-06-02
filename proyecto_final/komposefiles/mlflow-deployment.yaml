@@ -35,7 +35,7 @@ spec:
               value: supersecret
             - name: MLFLOW_S3_ENDPOINT_URL
               value: http://minio:9000
-          image: javieresquivel123/proyecto-final-mlflow:latest
+          image: javieresquivel123/proyecto-final-mlflow:3a17f430ca59e86f86f02f6dbf97b0e47cd12a69
           imagePullPolicy: Always
           name: mlflow
           ports:

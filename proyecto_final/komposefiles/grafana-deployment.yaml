@@ -25,7 +25,7 @@ spec:
         - env:
             - name: GF_SECURITY_ADMIN_PASSWORD
               value: admin
-          image: javieresquivel123/proyecto-final-grafana:latest
+          image: javieresquivel123/proyecto-final-grafana:3a17f430ca59e86f86f02f6dbf97b0e47cd12a69
           imagePullPolicy: Always
           name: grafana
           ports:

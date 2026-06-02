@@ -25,7 +25,7 @@ spec:
         - env:
             - name: LOCUST_HOST
               value: http://api:8013
-          image: javieresquivel123/proyecto-final-locust:latest
+          image: javieresquivel123/proyecto-final-locust:3a17f430ca59e86f86f02f6dbf97b0e47cd12a69
           imagePullPolicy: Always
           name: locust
           ports:
