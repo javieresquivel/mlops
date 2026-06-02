@@ -97,8 +97,39 @@ De lo contrario al contruir los contenedores toma la imagen del caché y no la �
 
 Se debe tener en cuenta también que al cambiar a kubernetes el mapeo de los puertos funciona de forma distinta. Mientras que en docker si nos conectamos desde un contenedor a otro usamos el puerto base del servicio, por ejemplo a mysql nos conectamos al 3306 independientemente si en el archivo docker compose mapeamos ese ```4000:3006``` en kubernetes si se debe llamar al puerto que se mapeó en el servicio, por lo tanto al llamar a mysql desde otro contenedor tendríamos que conectarnos al puerto 4000.
 
+## Despliegue con Argo
+
+Dado que al migrar de compose a kubernetes no se especifica un namespace, se debe crear manualmente de lo contrario interfiere con argo. En este caso se creó el namespace ```final```
+
+<img width="653" height="208" alt="image" src="https://github.com/user-attachments/assets/135db98e-d475-4de6-b317-28158e444113" />
+
+y se colocó en cada uno de los manifiestos generados con kompose en la etiquea ```metadata```
+
+<img width="756" height="389" alt="image" src="https://github.com/user-attachments/assets/728aa20c-a9b6-40df-8b44-5a5d2da59a26" />
+
+Una vez hecho esto se procede con la instalación de argo siguiendo el tutorial descrito en https://github.com/CristianDiazAlvarez/MLOPS_PUJ/blob/main/Niveles/4/argo/Tutorial_ArgoCD_GitOps.md
+
+Una vez se tiene acceso a la interfaz gráfica se procede a vincular el repositorio de github donde tenemos el proyecto final
+
+<img width="3184" height="706" alt="image" src="https://github.com/user-attachments/assets/188ed459-f1bd-4815-a077-09cdc93f0911" />
+
+Tan pronto se vincula el repositorio se procede a crear la aplicación donde lo más relevante es especificar el path donde se encuentran los manifiestos de kubernetes que para nuestro caso se encuentran en ```proyecto_final/komposefiles ```
+
+<img width="1668" height="471" alt="image" src="https://github.com/user-attachments/assets/0d7e9f55-1bff-4058-8b92-eda21199ec15" />
+
+Una vez creada la aplicación se procede a sincronizar el repositorio con lo que, si no hay errores, todo se pone en verde indicando que la operación se realizó correctamente
+
+<img width="3194" height="1018" alt="image" src="https://github.com/user-attachments/assets/df41f7e8-fe7d-4638-829b-7f3c3817f7fb" />
 
 
+
+
+
+
+
+
+
+   
 
 
 
