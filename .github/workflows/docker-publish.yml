@@ -3,7 +3,7 @@ name: Build and Push Docker Images
 on:
   push:
     branches:
-      - main  # O la rama que uses por defecto
+      - main
     paths:
       - 'proyecto_final/api/**'
       - 'proyecto_final/mlflow/**'
@@ -15,9 +15,9 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    
+
     strategy:
-      # matrix permite ejecutar el mismo job en paralelo para diferentes carpetas
+      
       matrix:
         service: [api, mlflow, airflow, streamlit, locust, grafana]
 
@@ -37,13 +37,45 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
         with:
-          # Apunta correctamente a la subcarpeta dentro de proyecto_final
           context: ./proyecto_final/${{ matrix.service }}
           file: ./proyecto_final/${{ matrix.service }}/Dockerfile
           push: true
-          # Publicará en Docker Hub como: tu_usuario/api:latest, tu_usuario/locust:latest, etc.
+          # Se genera la etiqueta con el SHA único del commit además del latest
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/proyecto-final-${{ matrix.service }}:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/proyecto-final-${{ matrix.service }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # TRABAJO 2: Actualización secuencial de manifiestos en Git
+  update-manifests:
+    runs-on: ubuntu-latest
+    needs: build-and-push # Espera a que todas las imágenes se hayan subido
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Actualizar etiquetas en archivos de Kompose
+        run: |
+          # Iteramos sobre cada servicio de la matriz para modificar sus respectivos manifiestos
+          for service in api mlflow airflow streamlit locust grafana; do
+            # Busca en la carpeta komposefiles/ cualquier archivo YAML que contenga la imagen vieja y la reemplaza por el nuevo SHA
+            # Soporta tanto archivos individuales por servicio como un solo archivo consolidado.
+            sed -i "s|image: .*proyecto-final-${service}:.*|image: ${{ secrets.DOCKERHUB_USERNAME }}/proyecto-final-${service}:${{ github.sha }}|g" komposefiles/*.yaml || true
+          done
+
+      - name: Commit y Push a GitHub (para Argo CD)
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Verificamos si hubo cambios reales en los archivos antes de hacer commit
+          if ! git diff --exit-code komposefiles/; then
+            git add komposefiles/*.yaml
+            git commit -m "chore: actualizar imágenes en komposefiles al SHA ${{ github.sha }} [skip ci]"
+            git push
+          else
+            echo "No se detectaron cambios en los manifiestos."
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
