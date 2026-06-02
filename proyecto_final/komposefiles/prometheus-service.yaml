@@ -1,6 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
+  namespace: final
   annotations:
     kompose.cmd: /home/javier/Descargas/kompose convert -f docker-compose.yml -o komposefiles2/ --volumes hostPath
     kompose.version: 1.26.0 (40646f47)

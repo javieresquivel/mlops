@@ -3,6 +3,7 @@ kind: Job
 
 metadata:
   name: airflow-init
+  namespace: final
   labels:
     io.kompose.service: airflow-init
   annotations:

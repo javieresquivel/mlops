@@ -1,6 +1,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  namespace: final
   name: mysql-ml-pvc    # Este es el nombre que usaremos para enlazarlo
 spec:
   accessModes:
@@ -12,6 +13,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  namespace: final
   name: mysql-pvc    # Este es el nombre que usaremos para enlazarlo
 spec:
   accessModes:
@@ -23,6 +25,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  namespace: final
   name: postgres-db-pvc    # Este es el nombre que usaremos para enlazarlo
 spec:
   accessModes:
@@ -34,6 +37,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  namespace: final
   name: airflow-logs-pvc    # Este es el nombre que usaremos para enlazarlo
 spec:
   accessModes:
@@ -45,6 +49,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  namespace: final
   name: minio-pvc    # Este es el nombre que usaremos para enlazarlo
 spec:
   accessModes:
