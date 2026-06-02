@@ -117,7 +117,7 @@ Tan pronto se vincula el repositorio se procede a crear la aplicación donde lo 
 
 <img width="1668" height="471" alt="image" src="https://github.com/user-attachments/assets/0d7e9f55-1bff-4058-8b92-eda21199ec15" />
 
-Una vez creada la aplicación se procede a sincronizar el repositorio con lo que, si no hay errores, todo se pone en verde indicando que la operación se realizó correctamente
+Una vez creada la aplicación se procede a sincronizar el repositorio con lo que, si no hay errores, todo se pone en verde indicando que la operación se realizó correctamente.
 
 <img width="3194" height="1018" alt="image" src="https://github.com/user-attachments/assets/df41f7e8-fe7d-4638-829b-7f3c3817f7fb" />
 
