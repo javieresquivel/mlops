@@ -121,6 +121,23 @@ Una vez creada la aplicación se procede a sincronizar el repositorio con lo que
 
 <img width="3194" height="1018" alt="image" src="https://github.com/user-attachments/assets/df41f7e8-fe7d-4638-829b-7f3c3817f7fb" />
 
+## Integración de argo con CI/CD
+
+Dado que se venía usando la versión ```latest``` cuando se actualizaban las imagenes, argo no hacía nada puesto que los manifiestos seguían igual. Por lo tanto se tuvo que modificar para que en vez de latest se usara el id del commit y el pipeline actualizara automáticamente los manifiestos de tal forma que argo lo detectara y así se pudiera realizar la actualización automática. 
+
+Dado que se van a modificar archivos, se le debe especificar a github que los workflows tienen el permiso para hacerlo ya que por defecto aparece en modo lectura. Para ello hay que ir a ```Settings/actions/general/Workflow permissions ``` y cambiar a modo lectura y escritura
+
+<img width="1821" height="894" alt="Captura desde 2026-06-02 09-11-54" src="https://github.com/user-attachments/assets/022d7099-f4b5-46e7-bef2-f8c00a72f083" />
+
+y luego en el pipeline se define la nueva tarea que se encarga de este proceso y que se realiza posterior a la publicación de las imagenes. En nuestro caso ```update-manifests``` . Al realizar el push ya aparece la nueva tarea
+
+<img width="1726" height="1173" alt="Captura desde 2026-06-02 09-07-30" src="https://github.com/user-attachments/assets/58d3a2ca-8894-4c77-975e-a443f3e5baf5" />
+
+y una vez finalizada argo detecta que hubo cambios y se sincroniza de nuevo
+
+<img width="3173" height="1039" alt="Captura desde 2026-06-02 09-16-15" src="https://github.com/user-attachments/assets/6b378140-3b70-45d9-8c98-6243428edf3b" />
+
+
 
 
 
