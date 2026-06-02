@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
-      
+
       matrix:
         service: [api, mlflow, airflow, streamlit, locust, grafana]
 
@@ -47,7 +47,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # TRABAJO 2: Actualización secuencial de manifiestos en Git
+  # Actualizar manifiestos
   update-manifests:
     runs-on: ubuntu-latest
     needs: build-and-push # Espera a que todas las imágenes se hayan subido
@@ -61,7 +61,7 @@ jobs:
           for service in api mlflow airflow streamlit locust grafana; do
             # Busca en la carpeta komposefiles/ cualquier archivo YAML que contenga la imagen vieja y la reemplaza por el nuevo SHA
             # Soporta tanto archivos individuales por servicio como un solo archivo consolidado.
-            sed -i "s|image: .*proyecto-final-${service}:.*|image: ${{ secrets.DOCKERHUB_USERNAME }}/proyecto-final-${service}:${{ github.sha }}|g" komposefiles/*.yaml || true
+            sed -i "s|image: .*proyecto-final-${service}:.*|image: ${{ secrets.DOCKERHUB_USERNAME }}/proyecto-final-${service}:${{ github.sha }}|g" proyecto_final/komposefiles/*.yaml || true
           done
 
       - name: Commit y Push a GitHub (para Argo CD)
@@ -71,7 +71,7 @@ jobs:
           
           # Verificamos si hubo cambios reales en los archivos antes de hacer commit
           if ! git diff --exit-code komposefiles/; then
-            git add komposefiles/*.yaml
+            git add proyecto_final/komposefiles/*.yaml
             git commit -m "chore: actualizar imágenes en komposefiles al SHA ${{ github.sha }} [skip ci]"
             git push
           else
