@@ -1,23 +1,21 @@
-Finalmente se debe configurar el archivo ``` .github/workflows/docker-publish.yml ``` que contiene las instrucciones necesarias para recorrer las carpetas que tienen un Dockerfile y que vamos a publicar
-
 ## Desarrollado por: **Grupo 9**
 - Javier Esquivel
 - Santiago Serrano
 
 ## Descripcion General
 
-Este proyecto implementa una arquitectura completa de MLOps para resolver un problema de regresion de precios de propiedades inmobiliarias. El dataset cuenta con 12 variables como numero de habitaciones, banos, tamano del terreno, ubicacion y fecha de venta previa, entre otras. Los datos se reciben por lotes desde una API externa y pasan por un pipeline de ingesta, validacion, preprocesamiento y entrenamiento orquestado por Apache Airflow. El modelo resultante se despliega en una API FastAPI con capacidad de recarga en caliente, y todo el sistema es monitoreable via Prometheus y Grafana.
+Este proyecto implementa una arquitectura completa de MLOps para resolver un problema de regresion de precios de propiedades inmobiliarias. El dataset cuenta con 12 variables como numero de habitaciones, baños, tamano del terreno, ubicacion y fecha de venta previa, entre otras. Los datos se reciben por lotes desde una API externa y pasan por un pipeline de ingesta, validacion, preprocesamiento y entrenamiento orquestado por Apache Airflow. El modelo resultante se despliega en una API FastAPI con capacidad de recarga en caliente, y todo el sistema es monitoreable via Prometheus y Grafana.
 
 ## DAG — mlops_ingestion_pipeline (18 tareas)
 
-El DAG se ejecuta manualmente y cada corrida procesa un lote de datos. Las primeras 7 tareas se encargan de obtener los datos desde la API externa, validar su esquema y calidad, detectar nuevas categorias y drift, y preprocesarlos para dejarlos listos para entrenamiento. La tarea 8 decide si vale la pena entrenar segun reglas tecnicas como volumen minimo, presencia de drift o categorias nuevas. Si se decide entrenar, las tareas 9 a 14 construyen un pipeline de RandomForest con busqueda de hiperparametros, lo evaluan, lo registran en MLflow, lo comparan contra el modelo en produccion y, si cumple los criterios de mejora, lo promueven. Finalmente, las tareas 15 a 18 registran el resultado en una tabla de historial y cierran la ejecucion.
+El DAG se ejecuta caeda 15 minutos y cada corrida procesa un lote de datos. Las primeras 7 tareas se encargan de obtener los datos desde la API externa, validar su esquema y calidad, detectar nuevas categorias y drift, y preprocesarlos para dejarlos listos para entrenamiento. La tarea 8 decide si vale la pena entrenar segun reglas tecnicas como volumen minimo, presencia de drift o categorias nuevas. Si se decide entrenar, las tareas 9 a 14 construyen un pipeline de RandomForest con busqueda de hiperparametros, lo evaluan, lo registran en MLflow, lo comparan contra el modelo en produccion y, si cumple los criterios de mejora, lo promueven. Finalmente, las tareas 15 a 18 registran el resultado en una tabla de historial y cierran la ejecucion.
 
 | # | Tarea | Que hace |
 |---|-------|----------|
 | 1 | `start` | Log de inicio |
 | 2 | `fetch_batch_from_api` | Consulta `data-api:80/data?group_number=N`. Inserta en `raw_data` con `batch_group` y `ingested_at`. Registra metadatos en `batch_log`. HTTP 400 (datos agotados) → dropea `raw_data`, `clean_data`, `batch_log` y reinicia data-api |
 | 3 | `validate_schema` | Verifica 12 columnas y tipos correctos |
-| 4 | `validate_data_quality` | Nulos criticos, duplicados, rangos, consistencia banos/cuartos, status validos |
+| 4 | `validate_data_quality` | Nulos criticos, duplicados, rangos, consistencia baños/cuartos, status validos |
 | 5 | `detect_new_categories` | Compara `status`, `city`, `state`, `prev_sold_date` contra `known_categories`. Registra nuevas |
 | 6 | `detect_data_drift` | PSI por variable vs historico de `raw_data`. Threshold 0.1 |
 | 7 | `preprocess_data` | Imputa nulos, crea `price_per_sqft`, `room_total`, `has_prev_sold`. Persiste en `clean_data` |
@@ -62,6 +60,29 @@ La API de inferencia expone 5 endpoints. El principal es `POST /predict`, que re
 | `/health` | GET | Health check |
 | `/metrics` | GET | Metricas Prometheus |
 
+## Streamlit — Interfaz gráfica
+
+La interfaz de Streamlit se despliega junto con los demás servicios y expone 4 páginas conectadas directamente a la API y a la base de datos MySQL (`training`).
+
+### Páginas
+
+| Página | Ruta | Función |
+|--------|------|---------|
+| **Inicio** | `/` | Resumen del proyecto, versión del modelo y dataset |
+| **Inferencia** | `/Inferencia` | Formulario con 11 campos → `POST /predict` → muestra precio estimado, modelo, versión y latencia |
+| **Historial** | `/Historial` | Tabla de ejecuciones del DAG desde `training_history`: filtros por decisión (promoted/rejected/skip) y fecha, color-coding, métricas del candidato y mejora vs producción |
+| **Inferencias registradas** | `/Inferencias_registradas` | Log de todas las predicciones desde `inference_logs`: resumen (total, precio promedio, latencia promedio), tabla detallada por fecha, modelo, versión, y datos de entrada |
+
+
+### Formulario de inferencia
+
+El formulario recibe los 11 campos de entrada del modelo (todo excepto `price`): `brokered_by`, `status`, `bed`, `bath`, `acre_lot`, `street`, `city`, `state`, `zip_code`, `house_size`, `prev_sold_date`. Al enviar, muestra:
+
+- Precio estimado en USD
+- Nombre del modelo y versión (alias `prod` en MLflow)
+- Latencia de la predicción en milisegundos
+- Respuesta completa de la API en JSON expandible
+
 ## Monitoreo
 
 La API expone metricas de Prometheus en `/metrics`: contador de requests exitosos y fallidos, histograma de latencia, y distribucion de predicciones. Grafana consume estas metricas en un dashboard pre-configurado. Para pruebas de carga, Locust puede lanzar 50 o mas usuarios concurrentes contra el endpoint de prediccion para validar el comportamiento bajo estres.
@@ -74,6 +95,8 @@ Dado que las imagenes a construir se van a publicar en Dockerhub lo primero que 
 Posteriormente se deben configurar las variables de secretos en el repositorio de github para que este tenga las credenciales para realizar la publicación
 
 <img width="2128" height="1189" alt="Captura desde 2026-05-27 09-35-25" src="https://github.com/user-attachments/assets/8cf6e6c6-9312-4abe-88eb-5f12625df6af" />
+ 
+Finalmente se debe configurar el archivo ``` .github/workflows/docker-publish.yml ``` que contiene las instrucciones necesarias para recorrer las carpetas que tienen un Dockerfile y que vamos a publicar 
 
 ## Kubernetes
 
