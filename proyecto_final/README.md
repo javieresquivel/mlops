@@ -9,6 +9,7 @@ Este proyecto implementa una arquitectura completa de MLOps para resolver un pro
 ## DAG — mlops_ingestion_pipeline (18 tareas)
 
 El DAG se ejecuta caeda 15 minutos y cada corrida procesa un lote de datos. Las primeras 7 tareas se encargan de obtener los datos desde la API externa, validar su esquema y calidad, detectar nuevas categorias y drift, y preprocesarlos para dejarlos listos para entrenamiento. La tarea 8 decide si vale la pena entrenar segun reglas tecnicas como volumen minimo, presencia de drift o categorias nuevas. Si se decide entrenar, las tareas 9 a 14 construyen un pipeline de RandomForest con busqueda de hiperparametros, lo evaluan, lo registran en MLflow, lo comparan contra el modelo en produccion y, si cumple los criterios de mejora, lo promueven. Finalmente, las tareas 15 a 18 registran el resultado en una tabla de historial y cierran la ejecucion.
+<img width="1442" height="142" alt="image" src="https://github.com/user-attachments/assets/e4c27a9f-28d7-43a6-bd0e-9984b2648846" />
 
 | # | Tarea | Que hace |
 |---|-------|----------|
@@ -31,6 +32,11 @@ El DAG se ejecuta caeda 15 minutos y cada corrida procesa un lote de datos. Las 
 | 17 | `notify_or_log_result` | Inserta en `training_history` (decision, metricas, version, razon) |
 | 18 | `end` | Log de finalizacion |
 
+historial de ejecuciones
+
+<img width="299" height="532" alt="image" src="https://github.com/user-attachments/assets/d65b09d9-664f-440d-8591-0314fa555781" />
+
+
 ### Tablas en MySQL (`training`)
 
 La base de datos de entrenamiento cuenta con 6 tablas que organizan los datos en distintas capas segun su nivel de procesamiento. `raw_data` almacena los registros tal como llegan de la API, con un identificador de lote y marca de tiempo. `clean_data` contiene los datos ya imputados y con variables derivadas como precio por metro cuadrado. `known_categories` lleva un historico de todos los valores categoricos que han aparecido para detectar nuevos. `batch_log` registra metadatos de cada lote recibido. `training_history` guarda el resultado de cada ejecucion del DAG (si entreno, si se promovio, metricas). `inference_logs` almacena cada prediccion realizada por la API con su entrada, resultado y latencia.
@@ -48,9 +54,13 @@ La base de datos de entrenamiento cuenta con 6 tablas que organizan los datos en
 
 Cada entrenamiento registra en MLflow los parametros del modelo (n_estimators, max_depth, min_samples_split), las metricas de test y train (MAE, MSE, RMSE, R2), y artefactos como el pipeline serializado, grafico de importancia de variables, grafico de residuales y el dataset usado. El backend es MySQL y los artefactos se almacenan en MinIO. Cuando un modelo candidato supera al productivo segun las reglas RF6, se actualiza el alias `prod` en el registry de MLflow para que apunte a la nueva version.
 
+<img width="1509" height="331" alt="image" src="https://github.com/user-attachments/assets/e762fd1c-6c80-48be-b4bb-3bb6cdce4f6d" />
+
 ## API FastAPI
 
 La API de inferencia expone 5 endpoints. El principal es `POST /predict`, que recibe los 11 campos de una propiedad (todo excepto el precio), completa valores faltantes, calcula las variables derivadas y ejecuta la prediccion con el pipeline de RandomForest. El modelo se mantiene en memoria cache para responder en milisegundos, y puede recargarse sin reiniciar el contenedor mediante `POST /model`, que lo descarga desde MLflow, lo guarda a disco y actualiza la cache. Cada prediccion se guarda de forma asincrona en la tabla `inference_logs` para no bloquear la respuesta.
+
+<img width="1433" height="519" alt="image" src="https://github.com/user-attachments/assets/e52749aa-9dff-4bfc-ac8c-4f4a7825db3e" />
 
 | Endpoint | Metodo | Descripcion |
 |----------|--------|-------------|
@@ -82,6 +92,17 @@ El formulario recibe los 11 campos de entrada del modelo (todo excepto `price`):
 - Nombre del modelo y versión (alias `prod` en MLflow)
 - Latencia de la predicción en milisegundos
 - Respuesta completa de la API en JSON expandible
+
+<img width="616" height="888" alt="image" src="https://github.com/user-attachments/assets/cb2ac716-1951-424a-b0bf-189e87e37568" />
+
+### Historial de inferencias
+
+<img width="1916" height="936" alt="image" src="https://github.com/user-attachments/assets/7e40e5b3-ed48-4021-ac92-2caa11210568" />
+
+### Historial de entrenamientos
+
+<img width="1918" height="938" alt="image" src="https://github.com/user-attachments/assets/68e82078-84fa-49f6-8829-e38e3aaeecff" />
+
 
 ## Monitoreo
 
