@@ -62,11 +62,11 @@ spec:
               name: api-hostpath0
           resources:
             requests:
-              cpu: "500m"      # Reserva 0.25 CPUs
+              cpu: "1"      # Reserva 0.25 CPUs
               memory: "500Mi"    # Reserva 64 Megabytes
             limits:
               cpu: "2"         # Máximo 1 CPU
-              memory: "500Mi"
+              memory: "1000Mi"
       restartPolicy: Always
       volumes:
         - hostPath:

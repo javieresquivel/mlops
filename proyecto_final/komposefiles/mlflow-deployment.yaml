@@ -46,11 +46,11 @@ spec:
               name: mlflow-hostpath0
           resources:
             requests:
-              cpu: "500m"      # Reserva 0.25 CPUs
-              memory: "200Mi"    # Reserva 64 Megabytes
+              cpu: "1"      # Reserva 0.25 CPUs
+              memory: "300Mi"    # Reserva 64 Megabytes
             limits:
               cpu: "1"         # Máximo 1 CPU
-              memory: "500Mi"
+              memory: "700Mi"
       restartPolicy: Always
       volumes:
         - hostPath:
