@@ -35,7 +35,7 @@ spec:
               value: "3306"
             - name: DB_USER
               value: user
-          image: javieresquivel123/proyecto-final-streamlit:3a17f430ca59e86f86f02f6dbf97b0e47cd12a69
+          image: javieresquivel123/proyecto-final-streamlit:8277f559d8beb99084af869213bab317b209f2b9
           imagePullPolicy: Always
           name: streamlit
           ports:
