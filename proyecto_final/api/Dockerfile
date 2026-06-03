@@ -7,6 +7,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uvx /usr/local/bin/uvx
 WORKDIR /app
 
 # Install deps using pyproject (uvicorn must be listed in pyproject)
+# Comentario de prueba
 COPY pyproject.toml /app/pyproject.toml
 RUN uv pip install --system .
 
