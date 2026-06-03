@@ -58,7 +58,7 @@ jobs:
       - name: Actualizar etiquetas en archivos de Kompose
         run: |
           # Iteramos sobre cada servicio de la matriz para modificar sus respectivos manifiestos
-          for service in api mlflow airflow streamlit locust grafana; do
+          for service in api mlflow streamlit locust grafana; do
             # Busca en la carpeta komposefiles/ cualquier archivo YAML que contenga la imagen vieja y la reemplaza por el nuevo SHA
             # Soporta tanto archivos individuales por servicio como un solo archivo consolidado.
             sed -i "s|image: .*proyecto-final-${service}:.*|image: ${{ secrets.DOCKERHUB_USERNAME }}/proyecto-final-${service}:${{ github.sha }}|g" proyecto_final/komposefiles/*.yaml || true
