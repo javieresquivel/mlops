@@ -51,7 +51,7 @@ spec:
               value: real-estate-model
             - name: MODEL_STAGE
               value: prod
-          image: javieresquivel123/proyecto-final-api:8277f559d8beb99084af869213bab317b209f2b9
+          image: javieresquivel123/proyecto-final-api:66b889591b43d1d77b3b89ac8cef46ca3562c3c7
           imagePullPolicy: Always
           name: api
           ports:

@@ -24,7 +24,7 @@ spec:
 
       containers:
         - name: airflow-init
-          image: javieresquivel123/proyecto-final-airflow:8277f559d8beb99084af869213bab317b209f2b9
+          image: javieresquivel123/proyecto-final-airflow:66b889591b43d1d77b3b89ac8cef46ca3562c3c7
           imagePullPolicy: Always
 
           command:
