@@ -28,6 +28,13 @@ spec:
           image: javieresquivel123/proyecto-final-grafana:8277f559d8beb99084af869213bab317b209f2b9
           imagePullPolicy: Always
           name: grafana
+          resources:
+            requests:
+              cpu: "500m"      # Reserva 0.25 CPUs
+              memory: "100Mi"    # Reserva 64 Megabytes
+            limits:
+              cpu: "1"         # Máximo 1 CPU
+              memory: "500Mi"
           ports:
             - containerPort: 3000
               protocol: TCP

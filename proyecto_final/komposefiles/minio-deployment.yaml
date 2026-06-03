@@ -44,6 +44,13 @@ spec:
           volumeMounts:
             - mountPath: /data
               name: minio-data
+          resources:
+            requests:
+              cpu: "500m"      # Reserva 0.25 CPUs
+              memory: "300Mi"    # Reserva 64 Megabytes
+            limits:
+              cpu: "1"         # Máximo 1 CPU
+              memory: "500Mi"
       restartPolicy: Always
       volumes:
         - name: minio-data

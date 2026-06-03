@@ -32,6 +32,13 @@ spec:
           volumeMounts:
             - mountPath: /etc/prometheus/prometheus.yml
               name: prometheus-hostpath0
+          resources:
+            requests:
+              cpu: "500m"      # Reserva 0.25 CPUs
+              memory: "100Mi"    # Reserva 64 Megabytes
+            limits:
+              cpu: "1"         # Máximo 1 CPU
+              memory: "400Mi"
       restartPolicy: Always
       volumes:
         - hostPath:

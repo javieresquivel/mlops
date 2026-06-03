@@ -45,6 +45,13 @@ spec:
           volumeMounts:
             - mountPath: /var/lib/postgresql/data
               name: postgres-db-volume
+          resources:
+            requests:
+              cpu: "500m"      # Reserva 0.25 CPUs
+              memory: "200Mi"    # Reserva 64 Megabytes
+            limits:
+              cpu: "1"         # Máximo 1 CPU
+              memory: "500Mi"
       restartPolicy: Always
       volumes:
         - name: postgres-db-volume

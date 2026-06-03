@@ -28,6 +28,13 @@ spec:
           image: javieresquivel123/proyecto-final-locust:8277f559d8beb99084af869213bab317b209f2b9
           imagePullPolicy: Always
           name: locust
+          resources:
+            requests:
+              cpu: "500m"      # Reserva 0.25 CPUs
+              memory: "250Mi"    # Reserva 64 Megabytes
+            limits:
+              cpu: "2"         # Máximo 1 CPU
+              memory: "500Mi"
           ports:
             - containerPort: 8089
               protocol: TCP
