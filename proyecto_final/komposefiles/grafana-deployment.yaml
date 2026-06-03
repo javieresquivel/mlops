@@ -31,10 +31,10 @@ spec:
           resources:
             requests:
               cpu: "500m"      # Reserva 0.25 CPUs
-              memory: "100Mi"    # Reserva 64 Megabytes
+              memory: "300Mi"    # Reserva 64 Megabytes
             limits:
-              cpu: "1"         # Máximo 1 CPU
-              memory: "500Mi"
+              cpu: "2"         # Máximo 1 CPU
+              memory: "1000Mi"
           ports:
             - containerPort: 3000
               protocol: TCP
