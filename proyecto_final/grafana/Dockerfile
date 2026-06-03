@@ -2,7 +2,7 @@ FROM grafana/grafana:latest
 
 ENV GF_SECURITY_ADMIN_PASSWORD=admin
 
-# Comentario de test
+# Comentario de test comentario prueba
 COPY ./provisioning /etc/grafana/provisioning/
 COPY ./dashboards /var/lib/grafana/dashboards/
 
