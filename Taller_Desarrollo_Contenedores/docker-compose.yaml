@@ -1,0 +1,11 @@
+services:
+  jupyter:
+    build: ./MiJupyterLab
+    container_name: mijupiterlab
+    #Redireccionar puerto 8888 del contenedor al puerto 8888 del host
+    ports:
+      - "8888:8888"
+    # Montar el directorio de modelos en el contenedor para que los cambios se reflejen en tiempo real
+    volumes:
+      - ./Models:/app/Models
+      - ./Data:/app/Data
